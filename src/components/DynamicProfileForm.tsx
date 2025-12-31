@@ -592,11 +592,6 @@ const DynamicProfileForm = ({ onSubmit, onCancel }: DynamicProfileFormProps) => 
                             <span>Uploading...</span>
                         </div>
                     )}
-                    {fieldValue && !isUploading && !isEditMode && (
-                        <div className="text-sm text-muted-foreground">
-                            Current file: {fieldValue}
-                        </div>
-                    )}
                     {fieldValue && !isUploading && isEditMode && (
                         <div className="text-sm text-muted-foreground">
                             Upload a new file to replace the existing one

@@ -398,7 +398,7 @@ const PrefilledProfileForm = ({ extractedData, documentFiles, onSave, onCancel }
             );
         }
 
-        // File upload fields - show current file path if available
+        // File upload fields - show status without path
         if (inputType === 'file') {
             return (
                 <div className="space-y-2">
@@ -406,7 +406,7 @@ const PrefilledProfileForm = ({ extractedData, documentFiles, onSave, onCancel }
                         {fieldValue ? (
                             <div className="flex items-center space-x-2">
                                 <FileText className="h-4 w-4" />
-                                <span>File: {fieldValue}</span>
+                                <span>File uploaded</span>
                             </div>
                         ) : (
                             'No file uploaded'
