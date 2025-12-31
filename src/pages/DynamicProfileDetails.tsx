@@ -473,10 +473,7 @@ const DynamicProfileDetails = () => {
       const response = await fetch('/api/copy-card-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fieldValues,
-          cardTitle: section.displayName
-        })
+        body: JSON.stringify({ fieldValues })
       });
 
       const result = await response.json();

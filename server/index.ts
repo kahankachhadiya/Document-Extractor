@@ -1051,18 +1051,17 @@ app.post("/api/settings", async (req, res) => {
 // Copy card data endpoint - sends data to external processor
 app.post("/api/copy-card-data", async (req, res) => {
   try {
-    const { fieldValues, cardTitle } = req.body;
+    const { fieldValues } = req.body;
     const settings = await loadSettings();
     
     if (!fieldValues || !Array.isArray(fieldValues)) {
       return res.status(400).json({ error: 'fieldValues array is required' });
     }
 
-    // Prepare data for external processor
+    // Prepare data for external processor - only values and shortcut
     const processorData = {
       values: fieldValues,
-      shortcut: settings.pasteShortcut || 'ctrl+v',
-      cardTitle: cardTitle || 'Unknown Card'
+      shortcut: settings.pasteShortcut || 'ctrl+v'
     };
 
     // Try to send to external processor (form-filler.exe)
