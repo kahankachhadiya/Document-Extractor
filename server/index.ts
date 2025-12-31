@@ -1862,6 +1862,139 @@ app.delete("/api/database/tables/:tableName/columns/:columnName", async (req, re
   }
 });
 
+// Rename column in table
+app.put("/api/database/tables/:tableName/columns/:columnName", async (req, res) => {
+  try {
+    const { tableName, columnName } = req.params;
+    const { newName } = req.body;
+    
+    console.log(`RENAME column request: table=${tableName}, column=${columnName}, newName=${newName}`);
+
+    if (!newName || !newName.trim()) {
+      return res.status(400).json({
+        error: "New column name is required"
+      });
+    }
+
+    // Sanitize new column name (replace spaces with underscores, lowercase)
+    const sanitizedNewName = newName.trim().replace(/\s+/g, '_').toLowerCase();
+
+    // Check if table exists
+    const tableExists = await tableDiscoveryService.tableExists(tableName);
+    if (!tableExists) {
+      return res.status(404).json({
+        error: `Table "${tableName}" not found`
+      });
+    }
+
+    // Prevent renaming of protected columns
+    const protectedColumns = ['client_id'];
+    if (tableName === 'personal_details') {
+      protectedColumns.push('first_name', 'created_at', 'updated_at');
+    }
+
+    if (protectedColumns.includes(columnName)) {
+      return res.status(400).json({
+        error: `Cannot rename protected column "${columnName}"`
+      });
+    }
+
+    // Get current table schema
+    const schema = await db.all(`PRAGMA table_info(${tableName})`);
+
+    // Check if column exists
+    const columnExists = schema.some(col => col.name === columnName);
+    if (!columnExists) {
+      return res.status(404).json({
+        error: `Column "${columnName}" not found in table "${tableName}"`
+      });
+    }
+
+    // Check if new name already exists
+    const newNameExists = schema.some(col => col.name === sanitizedNewName);
+    if (newNameExists && sanitizedNewName !== columnName) {
+      return res.status(400).json({
+        error: `Column "${sanitizedNewName}" already exists in table "${tableName}"`
+      });
+    }
+
+    // If same name, no need to rename
+    if (sanitizedNewName === columnName) {
+      return res.json({
+        success: true,
+        message: "Column name unchanged"
+      });
+    }
+
+    // Get all data from the table
+    const data = await db.all(`SELECT * FROM ${tableName}`);
+
+    // Create column definitions for the new table with renamed column
+    const columnDefs = schema.map(col => {
+      const colName = col.name === columnName ? sanitizedNewName : col.name;
+      let def = `${colName} ${col.type}`;
+      if (col.notnull) def += ' NOT NULL';
+      if (col.pk) def += ' PRIMARY KEY';
+      if (col.dflt_value !== null) def += ` DEFAULT ${col.dflt_value}`;
+      return def;
+    }).join(', ');
+
+    // Begin transaction
+    await db.run('BEGIN TRANSACTION');
+
+    try {
+      // Create new table with renamed column
+      await db.run(`CREATE TABLE ${tableName}_new (${columnDefs})`);
+
+      // Copy data to new table with renamed column
+      if (data.length > 0) {
+        const oldColumnNames = schema.map(col => col.name);
+        const newColumnNames = schema.map(col => col.name === columnName ? sanitizedNewName : col.name);
+        const placeholders = newColumnNames.map(() => '?').join(', ');
+
+        for (const row of data) {
+          const values = oldColumnNames.map(name => row[name]);
+          await db.run(
+            `INSERT INTO ${tableName}_new (${newColumnNames.join(', ')}) VALUES (${placeholders})`,
+            values
+          );
+        }
+      }
+
+      // Drop old table and rename new table
+      await db.run(`DROP TABLE ${tableName}`);
+      await db.run(`ALTER TABLE ${tableName}_new RENAME TO ${tableName}`);
+
+      // Update column_metadata table if it exists
+      try {
+        await db.run(
+          `UPDATE column_metadata SET column_name = ? WHERE table_name = ? AND column_name = ?`,
+          [sanitizedNewName, tableName, columnName]
+        );
+      } catch (metadataError) {
+        console.warn('Could not update column_metadata:', metadataError.message);
+      }
+
+      // Commit transaction
+      await db.run('COMMIT');
+
+      res.json({
+        success: true,
+        message: `Column "${columnName}" renamed to "${sanitizedNewName}" successfully`
+      });
+    } catch (error) {
+      // Rollback on error
+      await db.run('ROLLBACK');
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error renaming column:', error);
+    res.status(500).json({
+      error: `Failed to rename column: ${error.message}`
+    });
+  }
+});
+
 // Helper function to update personal_details.updated_at timestamp
 async function updateProfileTimestamp(clientId: string) {
   try {

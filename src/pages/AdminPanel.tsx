@@ -58,6 +58,10 @@ const DatabaseManagement = () => {
         }] 
     });
     const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+    
+    // State for editing column names
+    const [editingColumn, setEditingColumn] = useState<{ tableName: string; columnName: string } | null>(null);
+    const [editColumnName, setEditColumnName] = useState('');
 
     // Helper function to create default column state
     const createDefaultColumn = () => ({
@@ -241,6 +245,57 @@ const DatabaseManagement = () => {
         }
     };
 
+    // Rename column
+    const renameColumn = async (tableName: string, oldName: string, newName: string) => {
+        // Prevent renaming of protected columns
+        const protectedColumns = ['client_id'];
+        if (tableName === 'personal_details') {
+            protectedColumns.push('first_name', 'created_at', 'updated_at');
+        }
+        
+        if (protectedColumns.includes(oldName)) {
+            alert(`Cannot rename the "${formatFieldName(oldName)}" column - it is a protected system column`);
+            return;
+        }
+
+        if (!newName.trim()) {
+            alert('Please enter a new column name');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/database/tables/${tableName}/columns/${oldName}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ newName: newName.trim() })
+            });
+            
+            if (response.ok) {
+                fetchTables();
+                setEditingColumn(null);
+                setEditColumnName('');
+                alert(`Column renamed successfully`);
+            } else {
+                const errorData = await response.json();
+                alert(`Error renaming column: ${errorData.error}`);
+            }
+        } catch (error) {
+            console.error('Error renaming column:', error);
+            alert('Error renaming column');
+        }
+    };
+
+    // Start editing a column
+    const startEditingColumn = (tableName: string, columnName: string) => {
+        setEditingColumn({ tableName, columnName });
+        setEditColumnName(columnName.replace(/_/g, ' '));
+    };
+
+    // Cancel editing
+    const cancelEditingColumn = () => {
+        setEditingColumn(null);
+        setEditColumnName('');
+    };
 
 
     // Create new table
@@ -466,30 +521,78 @@ const DatabaseManagement = () => {
                                             protectedColumns.push('first_name', 'created_at', 'updated_at');
                                         }
                                         const isProtected = protectedColumns.includes(column.name);
+                                        const isEditing = editingColumn?.tableName === table.name && editingColumn?.columnName === column.name;
                                         
                                         return (
                                             <div
                                                 key={column.name}
                                                 className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
                                             >
-                                                <div className="flex items-center space-x-3">
+                                                <div className="flex items-center space-x-3 flex-1">
                                                     <Table className="h-4 w-4 text-muted-foreground" />
-                                                    <div>
-                                                        <div className="font-medium">{formatFieldName(column.name)}</div>
-                                                        <div className="text-xs text-muted-foreground">
-                                                            Type: {column.type}
+                                                    {isEditing ? (
+                                                        <div className="flex items-center space-x-2 flex-1">
+                                                            <Input
+                                                                value={editColumnName}
+                                                                onChange={(e) => setEditColumnName(e.target.value)}
+                                                                className="h-8 text-sm"
+                                                                placeholder="Enter new column name"
+                                                                autoFocus
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        renameColumn(table.name, column.name, editColumnName);
+                                                                    } else if (e.key === 'Escape') {
+                                                                        cancelEditingColumn();
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-8 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                                onClick={() => renameColumn(table.name, column.name, editColumnName)}
+                                                            >
+                                                                <Save className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-8 px-2"
+                                                                onClick={cancelEditingColumn}
+                                                            >
+                                                                <X className="h-4 w-4" />
+                                                            </Button>
                                                         </div>
-                                                    </div>
+                                                    ) : (
+                                                        <div>
+                                                            <div className="font-medium">{formatFieldName(column.name)}</div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                Type: {column.type}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                {!isProtected && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                                        onClick={() => deleteColumn(table.name, column.name)}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
+                                                {!isProtected && !isEditing && (
+                                                    <div className="flex items-center space-x-1">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                                                            onClick={() => startEditingColumn(table.name, column.name)}
+                                                            title="Edit column name"
+                                                        >
+                                                            <Edit className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                            onClick={() => deleteColumn(table.name, column.name)}
+                                                            title="Delete column"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
                                                 )}
                                             </div>
                                         );
