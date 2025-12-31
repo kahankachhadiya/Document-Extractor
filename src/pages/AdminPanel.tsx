@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Shield, Menu, X, Database, Table, Plus, Trash2, Save, AlertCircle, ArrowLeft, FileText, Edit } from "lucide-react";
+import { Shield, Menu, X, Database, Table, Plus, Trash2, Save, AlertCircle, ArrowLeft, FileText, Edit, Settings, Copy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1267,6 +1267,131 @@ const DatabaseManagement = () => {
     );
 };
 
+// Settings Component for shortcut configuration
+const SettingsPanel = () => {
+    const { toast } = useToast();
+    const [pasteShortcut, setPasteShortcut] = useState('ctrl+v');
+    const [loading, setLoading] = useState(true);
+
+    // Load settings on mount
+    useEffect(() => {
+        loadSettings();
+    }, []);
+
+    const loadSettings = async () => {
+        try {
+            const response = await fetch('/api/settings');
+            if (response.ok) {
+                const data = await response.json();
+                setPasteShortcut(data.pasteShortcut || 'ctrl+v');
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const saveSettings = async () => {
+        try {
+            const response = await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pasteShortcut })
+            });
+
+            if (response.ok) {
+                toast({ title: "Success", description: "Settings saved successfully" });
+            } else {
+                toast({ title: "Error", description: "Failed to save settings", variant: "destructive" });
+            }
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            toast({ title: "Error", description: "Failed to save settings", variant: "destructive" });
+        }
+    };
+
+    const shortcutOptions = [
+        { value: 'ctrl+v', label: 'Ctrl + V' },
+        { value: 'ctrl+shift+v', label: 'Ctrl + Shift + V' },
+        { value: 'ctrl+alt+v', label: 'Ctrl + Alt + V' },
+        { value: 'f2', label: 'F2' },
+        { value: 'f4', label: 'F4' },
+        { value: 'f6', label: 'F6' },
+    ];
+
+    if (loading) {
+        return (
+            <div className="space-y-6">
+                <div>
+                    <h2 className="text-2xl font-bold">Settings</h2>
+                    <p className="text-muted-foreground">Loading settings...</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            <div>
+                <h2 className="text-2xl font-bold">Settings</h2>
+                <p className="text-muted-foreground">
+                    Configure application settings and shortcuts
+                </p>
+            </div>
+
+            <Card className="card-elevated">
+                <CardHeader>
+                    <CardTitle className="flex items-center">
+                        <Copy className="h-5 w-5 mr-2" />
+                        Copy & Paste Settings
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-sm font-medium mb-2 block">
+                                Paste Shortcut Key
+                            </label>
+                            <p className="text-xs text-muted-foreground mb-3">
+                                This shortcut will be sent to the external application when copying card data.
+                                The application will use this key to paste data into form fields.
+                            </p>
+                            <select
+                                value={pasteShortcut}
+                                onChange={(e) => setPasteShortcut(e.target.value)}
+                                className="w-full max-w-xs px-3 py-2 border border-input bg-background rounded-md text-sm"
+                            >
+                                {shortcutOptions.map(option => (
+                                    <option key={option.value} value={option.value}>
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="pt-4 border-t">
+                            <h4 className="text-sm font-medium mb-2">How it works:</h4>
+                            <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
+                                <li>Click the "Copy Card Data" button on any card in the profile view</li>
+                                <li>The field values are sent to the external processor as an array</li>
+                                <li>The processor uses the configured shortcut to paste values one by one</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                        <Button onClick={saveSettings}>
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Settings
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+};
+
 const AdminPanel = () => {
     const navigate = useNavigate();
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1319,6 +1444,13 @@ const AdminPanel = () => {
             icon: FileText,
             description: 'Configure document extraction schemas',
             show: currentUser ? canModifySettings(currentUser) : false
+        },
+        {
+            id: 'settings',
+            label: 'Settings',
+            icon: Settings,
+            description: 'Configure shortcuts and preferences',
+            show: currentUser ? canModifySettings(currentUser) : false
         }
         // Add more navigation items here in the future
     ].filter(item => item.show);
@@ -1351,6 +1483,8 @@ const AdminPanel = () => {
                 return <FormBuilderPanel />;
             case 'document-parsing':
                 return <DocumentParsingConfig />;
+            case 'settings':
+                return <SettingsPanel />;
             // Add more cases here for future panels
             default:
                 return <DatabaseManagement />;

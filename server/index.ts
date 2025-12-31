@@ -994,11 +994,112 @@ function calculateCompletionPercentage(client: any, tableData: Record<string, an
   return Math.max(25, Math.min(100, percentage)); // Ensure between 25-100%
 }
 
+// Settings file path
+const SETTINGS_FILE_PATH = path.join(__dirname, 'config', 'app-settings.json');
 
+// Default settings
+const DEFAULT_SETTINGS = {
+  pasteShortcut: 'ctrl+v'
+};
+
+// Load settings from file
+async function loadSettings() {
+  try {
+    const data = await fs.readFile(SETTINGS_FILE_PATH, 'utf-8');
+    return JSON.parse(data);
+  } catch (error) {
+    // Return default settings if file doesn't exist
+    return DEFAULT_SETTINGS;
+  }
+}
+
+// Save settings to file
+async function saveSettings(settings: any) {
+  const configDir = path.dirname(SETTINGS_FILE_PATH);
+  await fs.mkdir(configDir, { recursive: true });
+  await fs.writeFile(SETTINGS_FILE_PATH, JSON.stringify(settings, null, 2));
+}
 
 // Routes
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+// Settings endpoints
+app.get("/api/settings", async (_req, res) => {
+  try {
+    const settings = await loadSettings();
+    res.json(settings);
+  } catch (error) {
+    console.error('Error loading settings:', error);
+    res.status(500).json({ error: 'Failed to load settings' });
+  }
+});
+
+app.post("/api/settings", async (req, res) => {
+  try {
+    const settings = await loadSettings();
+    const updatedSettings = { ...settings, ...req.body };
+    await saveSettings(updatedSettings);
+    res.json({ success: true, settings: updatedSettings });
+  } catch (error) {
+    console.error('Error saving settings:', error);
+    res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
+
+// Copy card data endpoint - sends data to external processor
+app.post("/api/copy-card-data", async (req, res) => {
+  try {
+    const { fieldValues, cardTitle } = req.body;
+    const settings = await loadSettings();
+    
+    if (!fieldValues || !Array.isArray(fieldValues)) {
+      return res.status(400).json({ error: 'fieldValues array is required' });
+    }
+
+    // Prepare data for external processor
+    const processorData = {
+      values: fieldValues,
+      shortcut: settings.pasteShortcut || 'ctrl+v',
+      cardTitle: cardTitle || 'Unknown Card'
+    };
+
+    // Try to send to external processor (form-filler.exe)
+    const { spawn } = await import('child_process');
+    const exePath = path.join(__dirname, 'form-filler.exe');
+    
+    try {
+      // Check if exe exists
+      await fs.access(exePath);
+      
+      // Spawn the process with JSON data as argument
+      const process = spawn(exePath, [JSON.stringify(processorData)], {
+        detached: true,
+        stdio: 'ignore'
+      });
+      
+      process.unref();
+      
+      res.json({ 
+        success: true, 
+        message: 'Data sent to form filler',
+        data: processorData
+      });
+    } catch (exeError) {
+      // Exe doesn't exist, just return the data that would be sent
+      console.log('Form filler exe not found, returning data:', processorData);
+      res.json({ 
+        success: true, 
+        message: 'Form filler exe not found. Data prepared for copying.',
+        data: processorData,
+        exeNotFound: true
+      });
+    }
+  } catch (error) {
+    console.error('Error in copy-card-data:', error);
+    res.status(500).json({ error: 'Failed to process copy request' });
+  }
 });
 
 // Performance monitoring endpoints

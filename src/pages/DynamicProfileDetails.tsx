@@ -446,6 +446,61 @@ const DynamicProfileDetails = () => {
     }
   };
 
+  // Copy entire card data and send to external processor
+  const copyCardData = async (section: TableSection, record: any) => {
+    try {
+      // Get field values excluding system fields
+      const systemFields = ['client_id', 'student_id', 'created_at', 'updated_at'];
+      const fieldValues: string[] = [];
+      
+      section.schema
+        .filter(col => !systemFields.includes(col.name))
+        .filter(col => record.hasOwnProperty(col.name) && record[col.name] !== null && record[col.name] !== '')
+        .forEach(col => {
+          fieldValues.push(String(record[col.name]));
+        });
+
+      if (fieldValues.length === 0) {
+        toast({
+          title: "No Data",
+          description: "No field values to copy",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Send to backend which will forward to external processor
+      const response = await fetch('/api/copy-card-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fieldValues,
+          cardTitle: section.displayName
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Card Data Copied",
+          description: result.exeNotFound 
+            ? `${fieldValues.length} values ready (form filler not found)`
+            : `${fieldValues.length} values sent to form filler`,
+        });
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Error copying card data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to copy card data",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Copy file path to clipboard
   const copyFilePath = async (filePath: string, fieldName: string) => {
     try {
@@ -714,10 +769,23 @@ const DynamicProfileDetails = () => {
         {section.data.map((record, index) => (
           <Card key={index}>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <Table className="h-5 w-5 mr-2" />
-                {section.displayName}
-                {section.data.length > 1 && <Badge className="ml-2">Record {index + 1}</Badge>}
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <Table className="h-5 w-5 mr-2" />
+                  {section.displayName}
+                  {section.data.length > 1 && <Badge className="ml-2">Record {index + 1}</Badge>}
+                </div>
+                {!isInformationEditMode && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyCardData(section, record)}
+                    className="text-xs"
+                  >
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copy Card Data
+                  </Button>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
