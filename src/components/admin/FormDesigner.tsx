@@ -427,16 +427,14 @@ const SortableCard = ({
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
-                {!isDocCard && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onDelete}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onDelete}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           </CardHeader>
@@ -1035,15 +1033,6 @@ const FormDesigner = ({
   };
 
   const deleteCard = (cardId: string) => {
-    const cardToDelete = form.cards.find(card => card.id === cardId);
-    
-    // Prevent deletion of document cards
-    if (cardToDelete && isDocumentCard(cardToDelete)) {
-      // Show a warning or prevent deletion
-      console.warn('Cannot delete document card - it is required for all forms');
-      return;
-    }
-
     const updatedCards = form.cards
       .filter((card) => card.id !== cardId)
       .map((card, index) => ({
