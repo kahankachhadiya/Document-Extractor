@@ -25,18 +25,15 @@ import {
   Plus,
   Trash2,
   GripVertical,
-  Edit,
   Eye,
   Save,
   X,
   FileText,
   Upload,
-  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -45,8 +42,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import FieldPalette from "./FieldPalette";
 
@@ -285,8 +280,6 @@ const SortableCard = ({
   onAddField: (field: AvailableField) => void;
   availableFields: AvailableField[];
 }) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editCard, setEditCard] = useState(card);
   const [showFieldPalette, setShowFieldPalette] = useState(false);
 
   const isDocCard = isDocumentCard(card);
@@ -307,16 +300,6 @@ const SortableCard = ({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-  };
-
-  const handleSave = () => {
-    onUpdate(editCard);
-    setIsEditing(false);
-  };
-
-  const handleCancel = () => {
-    setEditCard(card);
-    setIsEditing(false);
   };
 
   const handleFieldAdd = (field: AvailableField) => {
@@ -371,11 +354,6 @@ const SortableCard = ({
                   <Badge variant="secondary" className="text-xs">
                     {card.fields.length} fields
                   </Badge>
-                  {card.isRequired && (
-                    <Badge variant="destructive" className="text-xs">
-                      Required
-                    </Badge>
-                  )}
                   {isDocCard && (
                     <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
                       Document Section
@@ -384,13 +362,6 @@ const SortableCard = ({
                 </div>
               </div>
               <div className="flex space-x-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsEditing(true)}
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -441,66 +412,24 @@ const SortableCard = ({
                       key={field.id}
                       className="p-3 border rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
                     >
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="font-medium text-sm">
                             {field.displayName}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {field.tableName}.{field.columnName}
-                            {(field as any).fieldType === 'document_upload' && (
-                              <span className="ml-2 text-blue-600">• Document Upload</span>
-                            )}
                           </div>
                         </div>
-                        <div className="flex space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeField(field.id)}
-                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeField(field.id)}
+                          className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
                       </div>
-                      <div className="flex items-center space-x-2 text-xs">
-                        {field.isRequired && (
-                          <Badge variant="destructive" className="text-xs">
-                            Required
-                          </Badge>
-                        )}
-                        {field.enableCopy && (
-                          <Badge variant="secondary" className="text-xs">
-                            Copyable
-                          </Badge>
-                        )}
-                        {field.isReadonly && (
-                          <Badge variant="outline" className="text-xs">
-                            Read-only
-                          </Badge>
-                        )}
-                        {(field as any).fieldType === 'document_upload' && (
-                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                            Upload Field
-                          </Badge>
-                        )}
-                        {field.styling?.width !== 'full' && (
-                          <Badge variant="outline" className="text-xs">
-                            {(field.styling?.width || 'full') === 'half' ? '1/2' : '1/3'} width
-                          </Badge>
-                        )}
-                      </div>
-                      {(field.placeholder || field.helpText) && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {field.placeholder && (
-                            <div>Placeholder: "{field.placeholder}"</div>
-                          )}
-                          {field.helpText && (
-                            <div>Help: "{field.helpText}"</div>
-                          )}
-                        </div>
-                      )}
                     </div>
                   ))}
                   </div>
@@ -510,84 +439,6 @@ const SortableCard = ({
           </CardContent>
         </Card>
       </div>
-
-      {/* Card Edit Dialog */}
-      <Dialog open={isEditing} onOpenChange={setIsEditing}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Card</DialogTitle>
-            <DialogDescription>
-              Configure the card title, description, and layout options.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Card Title *</label>
-              <Input
-                type="text"
-                placeholder="Enter card title"
-                value={editCard.title}
-                onChange={(e) => setEditCard({ ...editCard, title: e.target.value })}
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">Description</label>
-              <Textarea
-                placeholder="Enter card description (optional)"
-                value={editCard.description || ''}
-                onChange={(e) => setEditCard({ ...editCard, description: e.target.value })}
-                rows={3}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Layout Columns</label>
-              <div className="flex space-x-2">
-                {[1, 2, 3].map((cols) => (
-                  <Button
-                    key={cols}
-                    variant={(editCard.styling?.columns || 2) === cols ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setEditCard({
-                      ...editCard,
-                      styling: { ...editCard.styling, columns: cols }
-                    })}
-                  >
-                    {cols} Column{cols > 1 ? 's' : ''}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Required Card</label>
-              <Switch
-                checked={editCard.isRequired}
-                onCheckedChange={(checked) => setEditCard({ ...editCard, isRequired: checked })}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Collapsible</label>
-              <Switch
-                checked={editCard.isCollapsible}
-                onCheckedChange={(checked) => setEditCard({ ...editCard, isCollapsible: checked })}
-              />
-            </div>
-
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={handleCancel}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave}>
-                Save Changes
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Field Palette Dialog */}
       <Dialog open={showFieldPalette} onOpenChange={setShowFieldPalette}>
@@ -925,31 +776,29 @@ const FormDesigner = ({
   const activeCard = form.cards.find((card) => card.id === activeId);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-xl font-semibold">Form Designer</h3>
-          <p className="text-sm text-muted-foreground">
-            Design your form by adding and arranging cards with fields
-            {hasUnsavedChanges && (
-              <span className="text-orange-600 ml-2">• Unsaved changes</span>
-            )}
-          </p>
+        <div className="flex items-center space-x-2">
+          <h4 className="font-medium">Form Structure</h4>
+          {hasUnsavedChanges && (
+            <span className="text-orange-600 text-sm">• Unsaved changes</span>
+          )}
         </div>
         <div className="flex space-x-2">
           <Button
             variant="outline"
+            size="sm"
             onClick={() => setShowPreview(!showPreview)}
           >
             <Eye className="h-4 w-4 mr-2" />
             {showPreview ? 'Hide Preview' : 'Show Preview'}
           </Button>
-          <Button variant="outline" onClick={onCancel}>
+          <Button variant="outline" size="sm" onClick={onCancel}>
             <X className="h-4 w-4 mr-2" />
             Cancel
           </Button>
-          <Button onClick={onSave} disabled={isLoading}>
+          <Button size="sm" onClick={onSave} disabled={isLoading}>
             <Save className="h-4 w-4 mr-2" />
             {isLoading ? 'Saving...' : 'Save Form'}
           </Button>
@@ -959,8 +808,7 @@ const FormDesigner = ({
       <div className={`grid gap-6 ${showPreview ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
         {/* Designer Panel */}
         <div className={`space-y-4 ${showPreview ? 'lg:col-span-1' : 'col-span-1'}`}>
-          <div className="flex items-center justify-between">
-            <h4 className="font-medium">Form Structure</h4>
+          <div className="flex items-center justify-end">
             <Button variant="outline" size="sm" onClick={addCard}>
               <Plus className="h-4 w-4 mr-2" />
               Add Card
