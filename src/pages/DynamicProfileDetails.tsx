@@ -1191,7 +1191,7 @@ const DynamicProfileDetails = () => {
               </Link>
               <div>
                 <h1 className="text-2xl font-bold">
-                  {profile?.client?.first_name || 'Unknown'} {profile?.client?.last_name || 'Student'}
+                  {profile?.client?.first_name || 'Unknown'} {profile?.client?.last_name || ''}
                 </h1>
                 <div className="flex items-center space-x-2">
                   <p className="text-sm text-muted-foreground font-mono">ID: {profile?.clientId || 'N/A'}</p>

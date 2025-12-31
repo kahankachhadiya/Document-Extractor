@@ -265,7 +265,7 @@ const FieldPalette = ({
                     <CollapsibleTrigger asChild>
                       <Button
                         variant="ghost"
-                        className="w-full justify-between p-3 h-auto font-medium border rounded-lg hover:bg-muted/50"
+                        className="w-full justify-between p-3 h-auto font-medium border rounded-lg hover:bg-muted/50 text-foreground hover:text-foreground"
                       >
                         <div className="flex items-center space-x-2">
                           {isExpanded ? (

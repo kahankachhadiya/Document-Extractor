@@ -1251,22 +1251,6 @@ const DynamicProfileForm = ({ onSubmit, onCancel }: DynamicProfileFormProps) => 
                                             <Database className="h-5 w-5 mr-2" />
                                             {table.displayName}
                                         </div>
-                                        <div className="flex items-center space-x-2">
-                                            {table.isRequired ? (
-                                                <Badge variant="destructive" className="text-xs">
-                                                    Required
-                                                </Badge>
-                                            ) : (
-                                                <Badge variant="outline" className="text-xs">
-                                                    Optional
-                                                </Badge>
-                                            )}
-                                            <Badge variant="outline" className="text-xs">
-                                                {table.columns.filter(col =>
-                                                    !col.primaryKey || !col.name.includes('_id')
-                                                ).length} fields
-                                            </Badge>
-                                        </div>
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>

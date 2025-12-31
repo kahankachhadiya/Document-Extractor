@@ -12,6 +12,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import { canAccessAdminPanel, canModifySettings } from "@/lib/rbac";
 import { AdminUser } from "@/types/admin";
 import DocumentParsingConfig from "@/components/admin/DocumentParsingConfig";
@@ -19,6 +20,7 @@ import FormBuilderPanel from "@/components/admin/FormBuilderPanel";
 
 // Database Management Component
 const DatabaseManagement = () => {
+    const { toast } = useToast();
     const [tablesWithSchemas, setTablesWithSchemas] = useState<any[]>([]);
     const [tablesLoading, setTablesLoading] = useState(true);
     const [tablesError, setTablesError] = useState<string>('');
@@ -58,6 +60,9 @@ const DatabaseManagement = () => {
         }] 
     });
     const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+    
+    // State for column delete confirmation
+    const [showDeleteColumnConfirm, setShowDeleteColumnConfirm] = useState<{ tableName: string; columnName: string } | null>(null);
     
     // State for editing column names
     const [editingColumn, setEditingColumn] = useState<{ tableName: string; columnName: string } | null>(null);
@@ -146,7 +151,7 @@ const DatabaseManagement = () => {
     // Add new column
     const addColumn = async (tableName: string) => {
         if (!newColumn.name.trim()) {
-            alert('Please enter a column name');
+            toast({ title: "Validation Error", description: "Please enter a column name", variant: "destructive" });
             return;
         }
 
@@ -159,9 +164,9 @@ const DatabaseManagement = () => {
                 // If it starts with a number, prefix with underscore
                 if (/^[0-9]/.test(columnName)) {
                     columnName = '_' + columnName;
-                    alert(`Column name cannot start with a number. Using "${columnName}" instead.`);
+                    toast({ title: "Notice", description: `Column name cannot start with a number. Using "${columnName}" instead.` });
                 } else {
-                    alert('Column name can only contain letters, numbers, and underscores, and must start with a letter or underscore.');
+                    toast({ title: "Validation Error", description: "Column name can only contain letters, numbers, and underscores, and must start with a letter or underscore.", variant: "destructive" });
                     return;
                 }
             }
@@ -169,7 +174,7 @@ const DatabaseManagement = () => {
             // Check for reserved words
             const reservedWords = ['SELECT', 'FROM', 'WHERE', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'TABLE', 'INDEX', 'VIEW', 'TRIGGER', 'PRAGMA', 'VACUUM', 'EXPLAIN', 'ANALYZE'];
             if (reservedWords.includes(columnName.toUpperCase())) {
-                alert(`"${columnName}" is a reserved SQL keyword. Please choose a different name.`);
+                toast({ title: "Validation Error", description: `"${columnName}" is a reserved SQL keyword. Please choose a different name.`, variant: "destructive" });
                 return;
             }
             
@@ -196,22 +201,22 @@ const DatabaseManagement = () => {
                 setShowAddColumn(null);
                 setNewColumn(createDefaultColumn());
                 fetchTables();
-                alert(`Column "${columnName}" added successfully!`);
+                toast({ title: "Success", description: `Column "${columnName}" added successfully!` });
             } else {
                 const errorData = await response.json().catch(async () => {
                     const text = await response.text();
                     return { error: text };
                 });
-                alert(`Error adding column: ${errorData.details || errorData.error}`);
+                toast({ title: "Error", description: `Error adding column: ${errorData.details || errorData.error}`, variant: "destructive" });
             }
         } catch (error) {
             console.error('Error adding column:', error);
-            alert('Error adding column');
+            toast({ title: "Error", description: "Error adding column", variant: "destructive" });
         }
     };
 
-    // Delete column
-    const deleteColumn = async (tableName: string, columnName: string) => {
+    // Delete column - show confirmation dialog
+    const confirmDeleteColumn = (tableName: string, columnName: string) => {
         // Prevent deletion of protected columns
         const protectedColumns = ['client_id'];
         if (tableName === 'personal_details') {
@@ -219,13 +224,18 @@ const DatabaseManagement = () => {
         }
         
         if (protectedColumns.includes(columnName)) {
-            alert(`Cannot delete the "${formatFieldName(columnName)}" column - it is a protected system column`);
+            toast({ title: "Error", description: `Cannot delete the "${formatFieldName(columnName)}" column - it is a protected system column`, variant: "destructive" });
             return;
         }
 
-        if (!confirm(`Are you sure you want to delete the column "${formatFieldName(columnName)}"? This action cannot be undone.`)) {
-            return;
-        }
+        setShowDeleteColumnConfirm({ tableName, columnName });
+    };
+
+    // Delete column - perform the actual deletion
+    const deleteColumn = async () => {
+        if (!showDeleteColumnConfirm) return;
+        
+        const { tableName, columnName } = showDeleteColumnConfirm;
 
         try {
             const response = await fetch(`/api/database/tables/${tableName}/columns/${columnName}`, {
@@ -234,14 +244,16 @@ const DatabaseManagement = () => {
             
             if (response.ok) {
                 fetchTables();
-                alert(`Column "${formatFieldName(columnName)}" deleted successfully`);
+                toast({ title: "Success", description: `Column "${formatFieldName(columnName)}" deleted successfully` });
             } else {
                 const error = await response.text();
-                alert(`Error deleting column: ${error}`);
+                toast({ title: "Error", description: `Error deleting column: ${error}`, variant: "destructive" });
             }
         } catch (error) {
             console.error('Error deleting column:', error);
-            alert('Error deleting column');
+            toast({ title: "Error", description: "Error deleting column", variant: "destructive" });
+        } finally {
+            setShowDeleteColumnConfirm(null);
         }
     };
 
@@ -254,12 +266,12 @@ const DatabaseManagement = () => {
         }
         
         if (protectedColumns.includes(oldName)) {
-            alert(`Cannot rename the "${formatFieldName(oldName)}" column - it is a protected system column`);
+            toast({ title: "Error", description: `Cannot rename the "${formatFieldName(oldName)}" column - it is a protected system column`, variant: "destructive" });
             return;
         }
 
         if (!newName.trim()) {
-            alert('Please enter a new column name');
+            toast({ title: "Validation Error", description: "Please enter a new column name", variant: "destructive" });
             return;
         }
 
@@ -274,14 +286,14 @@ const DatabaseManagement = () => {
                 fetchTables();
                 setEditingColumn(null);
                 setEditColumnName('');
-                alert(`Column renamed successfully`);
+                toast({ title: "Success", description: "Column renamed successfully" });
             } else {
                 const errorData = await response.json();
-                alert(`Error renaming column: ${errorData.error}`);
+                toast({ title: "Error", description: `Error renaming column: ${errorData.error}`, variant: "destructive" });
             }
         } catch (error) {
             console.error('Error renaming column:', error);
-            alert('Error renaming column');
+            toast({ title: "Error", description: "Error renaming column", variant: "destructive" });
         }
     };
 
@@ -301,7 +313,7 @@ const DatabaseManagement = () => {
     // Create new table
     const createTable = async () => {
         if (!newTable.name.trim()) {
-            alert('Please enter a table name');
+            toast({ title: "Validation Error", description: "Please enter a table name", variant: "destructive" });
             return;
         }
 
@@ -346,31 +358,31 @@ const DatabaseManagement = () => {
                 setShowCreateTable(false);
                 setNewTable({ name: '', columns: [createDefaultColumn()] });
                 fetchTables();
-                alert(`Table "${tableName}" created successfully with client_id foreign key!`);
+                toast({ title: "Success", description: `Table "${tableName}" created successfully with client_id foreign key!` });
             } else if (response.status === 404) {
-                alert(`Error: The API endpoint for creating tables is not implemented yet.\n\nThe backend server needs to implement:\nPOST /api/database/tables\n\nPlease contact your developer to add this functionality.`);
+                toast({ title: "Error", description: "The API endpoint for creating tables is not implemented yet. Please contact your developer.", variant: "destructive" });
             } else {
                 try {
                     const errorData = JSON.parse(responseText);
-                    alert(`Error creating table "${tableName}":\n${errorData.error || responseText}\n\nStatus: ${response.status}`);
+                    toast({ title: "Error", description: `Error creating table "${tableName}": ${errorData.error || responseText}`, variant: "destructive" });
                 } catch {
-                    alert(`Error creating table "${tableName}":\n${responseText}\n\nStatus: ${response.status}`);
+                    toast({ title: "Error", description: `Error creating table "${tableName}": ${responseText}`, variant: "destructive" });
                 }
             }
         } catch (error: any) {
             console.error('Error creating table:', error);
-            alert(`Network error while creating table "${tableName}":\n${error?.message || error}\n\nPlease check your connection and try again.`);
+            toast({ title: "Error", description: `Network error while creating table "${tableName}": ${error?.message || error}`, variant: "destructive" });
         }
     };
 
     // Delete table
     const deleteTable = async (tableName: string) => {
         if (tableName === 'personal_details') {
-            alert('Cannot delete the Personal Information table - it is the parent table for all other tables');
+            toast({ title: "Error", description: "Cannot delete the Personal Information table - it is the parent table for all other tables", variant: "destructive" });
             return;
         }
         if (tableName === 'documents') {
-            alert('Cannot delete the Documents table - it is a core system table');
+            toast({ title: "Error", description: "Cannot delete the Documents table - it is a core system table", variant: "destructive" });
             return;
         }
 
@@ -385,19 +397,19 @@ const DatabaseManagement = () => {
             if (response.ok) {
                 setShowDeleteConfirm(null);
                 fetchTables();
-                alert(`Table "${tableName}" deleted successfully!`);
+                toast({ title: "Success", description: `Table "${tableName}" deleted successfully!` });
             } else if (response.status === 404) {
                 setShowDeleteConfirm(null);
-                alert(`Error: The API endpoint for deleting tables is not implemented yet.\n\nThe backend server needs to implement:\nDELETE /api/database/tables/${tableName}\n\nPlease contact your developer to add this functionality.`);
+                toast({ title: "Error", description: "The API endpoint for deleting tables is not implemented yet. Please contact your developer.", variant: "destructive" });
             } else {
                 const error = await response.text().catch(() => 'Unknown error');
                 setShowDeleteConfirm(null);
-                alert(`Error deleting table "${tableName}":\n${error}\n\nStatus: ${response.status}`);
+                toast({ title: "Error", description: `Error deleting table "${tableName}": ${error}`, variant: "destructive" });
             }
         } catch (error) {
             console.error('Error deleting table:', error);
             setShowDeleteConfirm(null);
-            alert(`Network error while deleting table "${tableName}":\n${error.message}\n\nPlease check your connection and try again.`);
+            toast({ title: "Error", description: `Network error while deleting table "${tableName}": ${error.message}`, variant: "destructive" });
         }
     };
 
@@ -587,7 +599,7 @@ const DatabaseManagement = () => {
                                                             variant="ghost"
                                                             size="sm"
                                                             className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                                            onClick={() => deleteColumn(table.name, column.name)}
+                                                            onClick={() => confirmDeleteColumn(table.name, column.name)}
                                                             title="Delete column"
                                                         >
                                                             <Trash2 className="h-4 w-4" />
@@ -1209,6 +1221,43 @@ const DatabaseManagement = () => {
                             >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Delete Table
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Column Confirmation Dialog */}
+            <Dialog open={!!showDeleteColumnConfirm} onOpenChange={(open) => !open && setShowDeleteColumnConfirm(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center text-red-600">
+                            <AlertCircle className="h-5 w-5 mr-2" />
+                            Delete Column
+                        </DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete this column? This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4">
+                        <p>
+                            Are you sure you want to delete the column <strong>"{showDeleteColumnConfirm ? formatFieldName(showDeleteColumnConfirm.columnName) : ''}"</strong>?
+                        </p>
+                        
+                        <div className="flex justify-end space-x-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => setShowDeleteColumnConfirm(null)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                onClick={deleteColumn}
+                            >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete Column
                             </Button>
                         </div>
                     </div>

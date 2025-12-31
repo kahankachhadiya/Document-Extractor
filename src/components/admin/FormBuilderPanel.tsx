@@ -13,6 +13,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import FormDesigner from "./FormDesigner";
 import { 
     fetchForms, 
@@ -43,6 +44,7 @@ interface FormTemplate {
  * Provides admin interface for creating and managing custom forms with card-based structure
  */
 const FormBuilderPanel = () => {
+    const { toast } = useToast();
     const [forms, setForms] = useState<FormTemplateWithStats[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string>('');
@@ -123,7 +125,7 @@ const FormBuilderPanel = () => {
     // Create new form
     const createFormHandler = async () => {
         if (!newForm.name.trim()) {
-            alert('Please enter a form name');
+            toast({ title: "Validation Error", description: "Please enter a form name", variant: "destructive" });
             return;
         }
 
@@ -141,17 +143,17 @@ const FormBuilderPanel = () => {
                 cards: []
             });
             loadForms();
-            alert(`Form "${createRequest.name}" created successfully!`);
+            toast({ title: "Success", description: `Form "${createRequest.name}" created successfully!` });
         } catch (error) {
             console.error('Error creating form:', error);
-            alert(`Error creating form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            toast({ title: "Error", description: `Error creating form: ${error instanceof Error ? error.message : 'Unknown error'}`, variant: "destructive" });
         }
     };
 
     // Edit form
     const updateFormHandler = async (formId: string) => {
         if (!editForm.name.trim()) {
-            alert('Please enter a form name');
+            toast({ title: "Validation Error", description: "Please enter a form name", variant: "destructive" });
             return;
         }
 
@@ -166,10 +168,10 @@ const FormBuilderPanel = () => {
             setShowEditForm(null);
             setEditForm({ name: '', cards: [] });
             loadForms();
-            alert(`Form updated successfully!`);
+            toast({ title: "Success", description: "Form updated successfully!" });
         } catch (error) {
             console.error('Error updating form:', error);
-            alert(`Error updating form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            toast({ title: "Error", description: `Error updating form: ${error instanceof Error ? error.message : 'Unknown error'}`, variant: "destructive" });
         }
     };
 
@@ -179,18 +181,18 @@ const FormBuilderPanel = () => {
             await apiDeleteForm(formId, 'admin'); // TODO: Get from auth context
             setShowDeleteConfirm(null);
             loadForms();
-            alert('Form deleted successfully!');
+            toast({ title: "Success", description: "Form deleted successfully!" });
         } catch (error) {
             console.error('Error deleting form:', error);
             setShowDeleteConfirm(null);
-            alert(`Error deleting form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            toast({ title: "Error", description: `Error deleting form: ${error instanceof Error ? error.message : 'Unknown error'}`, variant: "destructive" });
         }
     };
 
     // Duplicate form
     const duplicateFormHandler = async (formId: string) => {
         if (!duplicateName.trim()) {
-            alert('Please enter a name for the duplicated form');
+            toast({ title: "Validation Error", description: "Please enter a name for the duplicated form", variant: "destructive" });
             return;
         }
 
@@ -199,10 +201,10 @@ const FormBuilderPanel = () => {
             setShowDuplicateForm(null);
             setDuplicateName('');
             loadForms();
-            alert(`Form duplicated successfully as "${duplicateName.trim()}"!`);
+            toast({ title: "Success", description: `Form duplicated successfully as "${duplicateName.trim()}"!` });
         } catch (error) {
             console.error('Error duplicating form:', error);
-            alert(`Error duplicating form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            toast({ title: "Error", description: `Error duplicating form: ${error instanceof Error ? error.message : 'Unknown error'}`, variant: "destructive" });
         }
     };
 
@@ -220,7 +222,7 @@ const FormBuilderPanel = () => {
             setShowEditForm(form.id);
         } catch (error) {
             console.error('Error parsing form cards:', error);
-            alert('Error loading form cards for editing');
+            toast({ title: "Error", description: "Error loading form cards for editing", variant: "destructive" });
         }
     };
 
@@ -255,7 +257,7 @@ const FormBuilderPanel = () => {
             }
         } catch (error) {
             console.error('Error opening form designer:', error);
-            alert('Error loading form designer');
+            toast({ title: "Error", description: "Error loading form designer", variant: "destructive" });
         }
     };
 
@@ -278,10 +280,10 @@ const FormBuilderPanel = () => {
             setShowDesigner(null);
             setDesignerForm(null);
             loadForms();
-            alert('Form design saved successfully!');
+            toast({ title: "Success", description: "Form design saved successfully!" });
         } catch (error) {
             console.error('Error saving form design:', error);
-            alert(`Error saving form design: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            toast({ title: "Error", description: `Error saving form design: ${error instanceof Error ? error.message : 'Unknown error'}`, variant: "destructive" });
         }
     };
 
