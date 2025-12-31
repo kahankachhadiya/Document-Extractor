@@ -1315,9 +1315,19 @@ const SettingsPanel = () => {
         { value: 'ctrl+v', label: 'Ctrl + V' },
         { value: 'ctrl+shift+v', label: 'Ctrl + Shift + V' },
         { value: 'ctrl+alt+v', label: 'Ctrl + Alt + V' },
+        { value: 'ctrl', label: 'Ctrl (single key)' },
+        { value: 'f1', label: 'F1' },
         { value: 'f2', label: 'F2' },
+        { value: 'f3', label: 'F3' },
         { value: 'f4', label: 'F4' },
+        { value: 'f5', label: 'F5' },
         { value: 'f6', label: 'F6' },
+        { value: 'f7', label: 'F7' },
+        { value: 'f8', label: 'F8' },
+        { value: 'f9', label: 'F9' },
+        { value: 'f10', label: 'F10' },
+        { value: 'f11', label: 'F11' },
+        { value: 'f12', label: 'F12' },
     ];
 
     if (loading) {
@@ -1374,8 +1384,10 @@ const SettingsPanel = () => {
                             <h4 className="text-sm font-medium mb-2">How it works:</h4>
                             <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
                                 <li>Click the "Copy Card Data" button on any card in the profile view</li>
-                                <li>The field values are sent to the external processor as an array</li>
-                                <li>The processor uses the configured shortcut to paste values one by one</li>
+                                <li>The clipboard server starts and registers the configured shortcut</li>
+                                <li>Press the shortcut key to type each value at superhuman speed</li>
+                                <li>Each press types the next value in sequence</li>
+                                <li>Server automatically closes when all values are typed</li>
                             </ol>
                         </div>
                     </div>

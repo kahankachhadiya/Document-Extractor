@@ -1048,7 +1048,7 @@ app.post("/api/settings", async (req, res) => {
   }
 });
 
-// Copy card data endpoint - sends data to external processor
+// Copy card data endpoint - sends data to clipboard_server.exe
 app.post("/api/copy-card-data", async (req, res) => {
   try {
     const { fieldValues } = req.body;
@@ -1058,39 +1058,46 @@ app.post("/api/copy-card-data", async (req, res) => {
       return res.status(400).json({ error: 'fieldValues array is required' });
     }
 
-    // Prepare data for external processor - only values and shortcut
+    // Prepare data for clipboard_server - only values and shortcut
     const processorData = {
       values: fieldValues,
       shortcut: settings.pasteShortcut || 'ctrl+v'
     };
 
-    // Try to send to external processor (form-filler.exe)
+    // Path to clipboard_server.exe in backend folder
     const { spawn } = await import('child_process');
-    const exePath = path.join(__dirname, 'form-filler.exe');
+    const exePath = path.join(__dirname, '..', 'backend', 'clipboard_server.exe');
     
     try {
       // Check if exe exists
       await fs.access(exePath);
       
-      // Spawn the process with JSON data as argument
-      const process = spawn(exePath, [JSON.stringify(processorData)], {
+      // Write JSON to a temp file for input
+      const tempInputPath = path.join(__dirname, 'config', 'clipboard_input.json');
+      await fs.mkdir(path.dirname(tempInputPath), { recursive: true });
+      await fs.writeFile(tempInputPath, JSON.stringify(processorData, null, 2));
+      
+      // Spawn the clipboard_server with file input
+      const process = spawn(exePath, ['--input-file', tempInputPath], {
         detached: true,
         stdio: 'ignore'
       });
       
       process.unref();
       
+      console.log('Clipboard server started with data:', processorData);
+      
       res.json({ 
         success: true, 
-        message: 'Data sent to form filler',
+        message: 'Data sent to clipboard server',
         data: processorData
       });
     } catch (exeError) {
       // Exe doesn't exist, just return the data that would be sent
-      console.log('Form filler exe not found, returning data:', processorData);
+      console.log('Clipboard server exe not found at:', exePath);
       res.json({ 
         success: true, 
-        message: 'Form filler exe not found. Data prepared for copying.',
+        message: 'Clipboard server not found. Data prepared for copying.',
         data: processorData,
         exeNotFound: true
       });
