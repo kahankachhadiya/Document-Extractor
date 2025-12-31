@@ -63,6 +63,7 @@ const DocumentUpload = () => {
   const [showProfileForm, setShowProfileForm] = useState(false);
   const [userCancelled, setUserCancelled] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Map<string, number>>(new Map());
+  const [loadAbortController, setLoadAbortController] = useState<AbortController | null>(null);
 
   // Fetch document types and configuration on mount
   const fetchDocumentTypesAndConfig = useCallback(async () => {
@@ -139,6 +140,10 @@ const DocumentUpload = () => {
       return;
     }
 
+    // Create abort controller for this load operation
+    const abortController = new AbortController();
+    setLoadAbortController(abortController);
+
     try {
       console.log('Starting model loading...');
       setModelStatus('loading');
@@ -147,7 +152,9 @@ const DocumentUpload = () => {
 
       // First check if the backend service is available
       console.log('Checking backend service availability...');
-      const statusResponse = await fetch('/api/document-processor/status');
+      const statusResponse = await fetch('/api/document-processor/status', {
+        signal: abortController.signal
+      });
       if (!statusResponse.ok) {
         throw new Error('Document processor backend is not available');
       }
@@ -164,7 +171,8 @@ const DocumentUpload = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        signal: abortController.signal
       });
 
       clearInterval(progressInterval);
@@ -185,6 +193,7 @@ const DocumentUpload = () => {
 
       setModelLoadProgress(100);
       setModelStatus('loaded');
+      setLoadAbortController(null);
       console.log('Model loaded successfully!');
       
       toast({
@@ -193,8 +202,17 @@ const DocumentUpload = () => {
       });
 
     } catch (err) {
+      // Check if this was an abort
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.log('Model loading was cancelled');
+        setModelStatus('unloaded');
+        setLoadAbortController(null);
+        return;
+      }
+      
       console.error('Error in loadAIModel:', err);
       setModelStatus('error');
+      setLoadAbortController(null);
       const errorMessage = err instanceof Error ? err.message : 'Failed to load AI model';
       setError(errorMessage);
       
@@ -208,6 +226,31 @@ const DocumentUpload = () => {
 
   // Unload AI model when leaving page
   const unloadAIModel = useCallback(async () => {
+    // If model is currently loading, abort the load request and also tell server to unload
+    if (modelStatus === 'loading') {
+      console.log('Aborting model load in progress...');
+      if (loadAbortController) {
+        loadAbortController.abort();
+        setLoadAbortController(null);
+      }
+      
+      // Also call unload on server since it may have started loading
+      try {
+        await fetch('/api/document-processor/unload-model', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        console.log('Sent unload request to server during loading abort');
+      } catch (err) {
+        console.warn('Failed to send unload request during abort:', err);
+      }
+      
+      setModelStatus('unloaded');
+      return;
+    }
+    
     if (modelStatus !== 'loaded') return;
 
     try {
@@ -230,7 +273,7 @@ const DocumentUpload = () => {
       console.error('Error unloading AI model:', err);
       setModelStatus('unloaded'); // Set to unloaded anyway
     }
-  }, [modelStatus]);
+  }, [modelStatus, loadAbortController]);
 
   // Initialize component
   useEffect(() => {
@@ -266,13 +309,19 @@ const DocumentUpload = () => {
   // Cleanup: Unload model when component unmounts or user navigates away
   useEffect(() => {
     return () => {
-      if (modelStatus === 'loaded') {
+      // If loading is in progress, abort it and tell server to unload
+      if (loadAbortController) {
+        loadAbortController.abort();
+        // Use sendBeacon to reliably send unload request during unmount
+        navigator.sendBeacon('/api/document-processor/unload-model', JSON.stringify({ action: 'unload' }));
+      }
+      if (modelStatus === 'loaded' || modelStatus === 'loading') {
         // Use sendBeacon for reliable cleanup during page unload
         const unloadData = JSON.stringify({ action: 'unload' });
         navigator.sendBeacon('/api/document-processor/unload-model', unloadData);
       }
     };
-  }, [modelStatus]);
+  }, [modelStatus, loadAbortController]);
 
   // Process document immediately when file is selected - NON-BLOCKING
   const processDocumentImmediately = useCallback((documentType: string, file: File) => {
