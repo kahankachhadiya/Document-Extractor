@@ -900,17 +900,6 @@ const DatabaseManagement = () => {
                             </div>
                         </div>
 
-                        <div className="bg-blue-50 p-3 rounded-lg space-y-1">
-                            <p className="text-sm text-blue-800">
-                                <strong>Note:</strong> All tables will automatically include a <code>client_id</code> column 
-                                as the primary key and foreign key referencing the personal details table.
-                            </p>
-                            <p className="text-xs text-blue-700">
-                                All constraints (required, length limits, dropdown options, value ranges) are optional. 
-                                Leave them empty if you don't need restrictions on a field.
-                            </p>
-                        </div>
-
                         <div className="flex justify-end space-x-2">
                             <Button
                                 variant="outline"
