@@ -1,0 +1,196 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Form Master Pro Design System - Professional education platform */
+
+@layer base {
+  :root {
+    /* Core Backgrounds */
+    --background: 0 0% 100%;
+    --foreground: 220 13% 18%;
+
+    /* Card System */
+    --card: 0 0% 100%;
+    --card-foreground: 220 13% 18%;
+
+    /* Overlays */
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 13% 18%;
+
+    /* Primary Brand - Professional Blue */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 217 91% 55%;
+    --primary-light: 217 91% 95%;
+
+    /* Secondary - Clean Gray */
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 220 13% 18%;
+    --secondary-hover: 210 40% 92%;
+
+    /* Accent - Vibrant Teal */
+    --accent: 180 100% 40%;
+    --accent-foreground: 0 0% 100%;
+    --accent-hover: 180 100% 35%;
+    --accent-light: 180 100% 95%;
+
+    /* Success - Achievement Green */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 142 76% 95%;
+
+    /* Warning - Attention Orange */
+    --warning: 25 95% 53%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 25 95% 95%;
+
+    /* Destructive - Alert Red */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Neutral System */
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    
+    /* Borders & Inputs */
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 217 91% 60%;
+
+    /* Design Tokens */
+    --radius: 0.75rem;
+    --radius-sm: 0.5rem;
+    --radius-lg: 1rem;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(180 100% 40%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 46%));
+    --gradient-hero: linear-gradient(135deg, hsl(217 91% 60%) 0%, hsl(180 100% 40%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(220 14% 98%) 100%);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(220 13% 18% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(220 13% 18% / 0.1), 0 2px 4px -2px hsl(220 13% 18% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(220 13% 18% / 0.1), 0 4px 6px -4px hsl(220 13% 18% / 0.1);
+    --shadow-xl: 0 20px 25px -5px hsl(220 13% 18% / 0.1), 0 8px 10px -6px hsl(220 13% 18% / 0.1);
+    --shadow-primary: 0 10px 30px -10px hsl(217 91% 60% / 0.3);
+    /* Animations */
+    --animation-duration: 0.2s;
+    --animation-timing: cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* Layout */
+    --sidebar-width: 280px;
+    --header-height: 64px;
+    --nav-height: 56px;
+  }
+
+  .dark {
+    /* Dark theme overrides */
+    --background: 220 13% 9%;
+    --foreground: 0 0% 95%;
+    --card: 220 13% 11%;
+    --card-foreground: 0 0% 95%;
+    --popover: 220 13% 11%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 217 91% 65%;
+    --primary-foreground: 220 13% 9%;
+    --secondary: 220 13% 15%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 220 13% 15%;
+    --muted-foreground: 220 9% 65%;
+    --accent: 180 100% 45%;
+    --accent-foreground: 220 13% 9%;
+    --border: 220 13% 20%;
+    --input: 220 13% 20%;
+    --ring: 217 91% 65%;
+  }
+}
+
+@layer components {
+  /* Hero components */
+  .btn-hero {
+    @apply bg-gradient-to-r from-primary to-accent text-white hover:from-primary-hover hover:to-accent-hover 
+           shadow-lg hover:shadow-primary transition-all duration-300 border-0;
+  }
+  
+  .btn-success {
+    @apply bg-success hover:bg-success/90 text-success-foreground shadow-md hover:shadow-lg;
+  }
+  
+  .btn-warning {
+    @apply bg-warning hover:bg-warning/90 text-warning-foreground;
+  }
+
+  /* Card components */
+  .card-elevated {
+    @apply bg-gradient-to-br from-card to-muted border-0 shadow-lg hover:shadow-xl 
+           transition-all duration-300;
+  }
+  
+  .card-profile {
+    @apply card-elevated p-6 rounded-xl;
+  }
+
+  /* Form components */
+  .form-section {
+    @apply bg-card rounded-lg border p-6 space-y-4;
+  }
+  
+  .field-group {
+    @apply space-y-2;
+  }
+  
+  .copy-button {
+    @apply bg-primary/10 hover:bg-primary/20 text-primary border-primary/20 
+           hover:border-primary/40 transition-all duration-200;
+  }
+
+  /* Status indicators */
+  .status-complete {
+    @apply bg-success-light text-success border-success/20;
+  }
+  
+  .status-incomplete {
+    @apply bg-warning-light text-warning border-warning/20;
+  }
+  
+  .status-pending {
+    @apply bg-accent-light text-accent border-accent/20;
+  }
+
+  /* Animation classes */
+  .animate-fade-in {
+    animation: fadeIn var(--animation-duration) var(--animation-timing);
+  }
+  
+  .animate-slide-up {
+    animation: slideUp var(--animation-duration) var(--animation-timing);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(10px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}

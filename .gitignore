@@ -1,0 +1,177 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE and Editor files
+.vscode/
+.idea/
+.kiro/
+.fleet/
+.sublime-project
+.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Common dot folders
+.history/
+.vscode-test/
+.nyc_output/
+.sass-cache/
+.grunt/
+.bower_components/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs - exclude log files but keep directory structure
+logs/
+!logs/.gitkeep
+logs/*.log
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output/
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Temporary folders
+tmp/
+temp/
+
+# Backend specific - exclude large files but keep directory structure
+backend/
+!backend/.gitkeep
+!backend/logs/
+!backend/logs/.gitkeep
+!backend/README.md
+!backend/API_DOCUMENTATION.md
+!backend/document-processor.exe
+backend/logs/*.log
+
+# Server data - exclude uploaded files but keep directory structure  
+server/Data/
+!server/Data/.gitkeep
+!server/Data/temp/
+!server/Data/temp/.gitkeep
+!server/Data/documents/
+!server/Data/documents/.gitkeep
+server/Data/temp/*
+!server/Data/temp/.gitkeep
+server/Data/documents/*
+!server/Data/documents/.gitkeep
+
+# Database files
+server/*.db
+server/*.db-shm
+server/*.db-wal
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+
+# Test outputs
+test-output.txt
+coverage/
+
+# Vite
+.vite/
+
+# TypeScript
+*.tsbuildinfo
+
+# Local development
+.local/
+
+# Executables and large files (exclude specific large executables)
+llama-server.exe
+*.app
+*.dmg
+*.dll
+
+# Compressed files
+*.zip
+*.tar.gz
+*.rar
+
+# Machine learning models and large files (>100MB)
+*.gguf
+*.bin
+*.safetensors
+gemma-*
+# Large model files and training data
+*.traineddata
+tessdata/
+llama_server/
+gemma-3n-E4B-it-text-GGUF/
+
+# Tesseract OCR files
+tesseract/

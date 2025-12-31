@@ -1,0 +1,42 @@
+{
+  "version": "1.0",
+  "schemas": [
+    {
+      "documentType": "Aadhar_Card",
+      "displayName": "Aadhar Card",
+      "fields": [
+        {
+          "columnName": "Aadhar_Card_Number",
+          "tableName": "Details",
+          "displayName": "Aadhar Card Number",
+          "description": "of this format XXXX XXXX XXXX and all are integer"
+        },
+        {
+          "columnName": "Address",
+          "tableName": "Details",
+          "displayName": "Address",
+          "description": ""
+        },
+        {
+          "columnName": "Gender",
+          "tableName": "Details",
+          "displayName": "Gender",
+          "description": ""
+        },
+        {
+          "columnName": "first_name",
+          "tableName": "personal_details",
+          "displayName": "First Name",
+          "description": ""
+        },
+        {
+          "columnName": "Last_Name",
+          "tableName": "personal_details",
+          "displayName": "Last Name",
+          "description": ""
+        }
+      ]
+    }
+  ],
+  "lastModified": "2025-12-31T05:41:38.635Z"
+}
