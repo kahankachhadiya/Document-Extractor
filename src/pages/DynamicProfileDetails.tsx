@@ -973,7 +973,7 @@ const DynamicProfileDetails = () => {
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center">
                   <FileText className="h-5 w-5 mr-2" />
-                  Document {index + 1}
+                  Documents
                 </div>
                 {/* Only show Edit button if there are non-system columns */}
                 {hasFileColumns && (
