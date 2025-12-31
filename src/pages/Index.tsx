@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef } from "react";
 import { Plus, BookOpen, User, FileText, Target, Clock, Search, X, Shield, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -24,19 +24,6 @@ const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const profiles = profilesData as any[];
-
-  // Keyboard shortcut to focus search (Ctrl/Cmd + K)
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
-        event.preventDefault();
-        searchInputRef.current?.focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   // Filter profiles based on search query
   const filteredProfiles = useMemo(() => {
@@ -198,7 +185,7 @@ const Index = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 ref={searchInputRef}
-                placeholder="Search profiles by name, ID, or phone number... (Ctrl+K)"
+                placeholder="Search profiles by name, ID, or phone number..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 pr-10"
@@ -336,7 +323,7 @@ const Index = () => {
                       <li><strong>Upload Documents:</strong> Upload certificates, marksheets, and other documents</li>
                       <li><strong>View Guide:</strong> Access this help guide anytime</li>
                       <li><strong>Admin Panel:</strong> Access system administration (for administrators only)</li>
-                      <li><strong>Search Profiles:</strong> Use the search bar (Ctrl+K) to quickly find profiles by name, ID, or phone number</li>
+                      <li><strong>Search Profiles:</strong> Use the search bar to quickly find profiles by name, ID, or phone number</li>
                     </ul>
                   </section>
 
@@ -374,7 +361,6 @@ const Index = () => {
                     <h3 className="text-lg font-semibold text-primary mb-2">🔍 Searching Profiles</h3>
                     <ul className="list-disc list-inside space-y-2 text-muted-foreground">
                       <li>Use the search bar at the top of the profiles section</li>
-                      <li>Press Ctrl+K to quickly focus on search</li>
                       <li>Search by name, profile ID, or phone number</li>
                       <li>Results update instantly as you type</li>
                     </ul>
@@ -390,12 +376,13 @@ const Index = () => {
                   </section>
 
                   <section>
-                    <h3 className="text-lg font-semibold text-primary mb-2">💡 Tips & Shortcuts</h3>
+                    <h3 className="text-lg font-semibold text-primary mb-2">💡 Tips</h3>
                     <ul className="list-disc list-inside space-y-2 text-muted-foreground">
-                      <li><strong>Ctrl+K:</strong> Quick search</li>
                       <li>Required fields are marked with a red asterisk (*)</li>
                       <li>Save your work frequently to avoid data loss</li>
                       <li>Use clear, descriptive names for easy identification</li>
+                      <li>Press Enter to submit forms</li>
+                      <li>Press Tab to navigate between fields</li>
                     </ul>
                   </section>
 
@@ -421,7 +408,7 @@ const Index = () => {
                       <li><strong>દસ્તાવેજો અપલોડ કરો:</strong> પ્રમાણપત્રો, માર્કશીટ અને અન્ય દસ્તાવેજો અપલોડ કરો</li>
                       <li><strong>ગાઈડ જુઓ:</strong> આ મદદ માર્ગદર્શિકા ગમે ત્યારે જુઓ</li>
                       <li><strong>એડમિન પેનલ:</strong> સિસ્ટમ એડમિનિસ્ટ્રેશન એક્સેસ કરો (ફક્ત એડમિનિસ્ટ્રેટર માટે)</li>
-                      <li><strong>પ્રોફાઇલ શોધો:</strong> નામ, ID અથવા ફોન નંબર દ્વારા પ્રોફાઇલ ઝડપથી શોધવા માટે સર્ચ બાર (Ctrl+K) નો ઉપયોગ કરો</li>
+                      <li><strong>પ્રોફાઇલ શોધો:</strong> નામ, ID અથવા ફોન નંબર દ્વારા પ્રોફાઇલ ઝડપથી શોધવા માટે સર્ચ બારનો ઉપયોગ કરો</li>
                     </ul>
                   </section>
 
@@ -459,7 +446,6 @@ const Index = () => {
                     <h3 className="text-lg font-semibold text-primary mb-2">🔍 પ્રોફાઇલ શોધવી</h3>
                     <ul className="list-disc list-inside space-y-2 text-muted-foreground">
                       <li>પ્રોફાઇલ સેક્શનની ટોચ પર સર્ચ બારનો ઉપયોગ કરો</li>
-                      <li>સર્ચ પર ઝડપથી ફોકસ કરવા માટે Ctrl+K દબાવો</li>
                       <li>નામ, પ્રોફાઇલ ID અથવા ફોન નંબર દ્વારા શોધો</li>
                       <li>તમે ટાઇપ કરો તેમ પરિણામો તરત જ અપડેટ થાય છે</li>
                     </ul>
@@ -475,12 +461,13 @@ const Index = () => {
                   </section>
 
                   <section>
-                    <h3 className="text-lg font-semibold text-primary mb-2">💡 ટિપ્સ અને શોર્ટકટ્સ</h3>
+                    <h3 className="text-lg font-semibold text-primary mb-2">💡 ટિપ્સ</h3>
                     <ul className="list-disc list-inside space-y-2 text-muted-foreground">
-                      <li><strong>Ctrl+K:</strong> ઝડપી શોધ</li>
                       <li>ફરજિયાત ફીલ્ડ્સ લાલ તારા (*) સાથે ચિહ્નિત છે</li>
                       <li>ડેટા ગુમાવવાનું ટાળવા માટે તમારું કામ વારંવાર સેવ કરો</li>
                       <li>સરળ ઓળખ માટે સ્પષ્ટ, વર્ણનાત્મક નામોનો ઉપયોગ કરો</li>
+                      <li>ફોર્મ સબમિટ કરવા માટે Enter દબાવો</li>
+                      <li>ફીલ્ડ્સ વચ્ચે નેવિગેટ કરવા માટે Tab દબાવો</li>
                     </ul>
                   </section>
 
