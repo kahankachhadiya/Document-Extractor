@@ -30,6 +30,8 @@ import {
   X,
   FileText,
   Upload,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -272,12 +274,20 @@ const SortableCard = ({
   onUpdate,
   onDelete,
   onAddField,
+  onMoveUp,
+  onMoveDown,
+  isFirst,
+  isLast,
   availableFields,
 }: {
   card: CardTemplate;
   onUpdate: (card: CardTemplate) => void;
   onDelete: () => void;
   onAddField: (field: AvailableField) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  isFirst: boolean;
+  isLast: boolean;
   availableFields: AvailableField[];
 }) => {
   const [showFieldPalette, setShowFieldPalette] = useState(false);
@@ -317,6 +327,22 @@ const SortableCard = ({
       fields: card.fields.filter(f => f.id !== fieldId),
     };
     onUpdate(updatedCard);
+  };
+
+  const moveFieldUp = (fieldId: string) => {
+    const index = card.fields.findIndex(f => f.id === fieldId);
+    if (index <= 0) return;
+    const newFields = [...card.fields];
+    [newFields[index - 1], newFields[index]] = [newFields[index], newFields[index - 1]];
+    onUpdate({ ...card, fields: newFields });
+  };
+
+  const moveFieldDown = (fieldId: string) => {
+    const index = card.fields.findIndex(f => f.id === fieldId);
+    if (index < 0 || index >= card.fields.length - 1) return;
+    const newFields = [...card.fields];
+    [newFields[index], newFields[index + 1]] = [newFields[index + 1], newFields[index]];
+    onUpdate({ ...card, fields: newFields });
   };
 
   return (
@@ -362,6 +388,28 @@ const SortableCard = ({
                 </div>
               </div>
               <div className="flex space-x-1">
+                <div className="flex flex-col">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onMoveUp}
+                    disabled={isFirst}
+                    className="h-5 w-5 p-0"
+                    title="Move card up"
+                  >
+                    <ChevronUp className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onMoveDown}
+                    disabled={isLast}
+                    className="h-5 w-5 p-0"
+                    title="Move card down"
+                  >
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -401,24 +449,42 @@ const SortableCard = ({
                   </Button>
                 </div>
               ) : (
-                <ScrollArea className="max-h-96">
-                  <div className={`grid gap-3 pr-2 ${
-                    (card.styling?.columns || 2) === 1 ? 'grid-cols-1' :
-                    (card.styling?.columns || 2) === 2 ? 'grid-cols-1 md:grid-cols-2' :
-                    'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-                  }`}>
-                  {card.fields.map((field) => (
+                <ScrollArea className="max-h-80">
+                  <div className="space-y-2 pr-2">
+                  {card.fields.map((field, index) => (
                     <div
                       key={field.id}
                       className="p-3 border rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
                     >
                       <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">
-                            {field.displayName}
+                        <div className="flex items-center space-x-2">
+                          <div className="flex flex-col">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => moveFieldUp(field.id)}
+                              disabled={index === 0}
+                              className="h-5 w-5 p-0"
+                            >
+                              <ChevronUp className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => moveFieldDown(field.id)}
+                              disabled={index === card.fields.length - 1}
+                              className="h-5 w-5 p-0"
+                            >
+                              <ChevronDown className="h-3 w-3" />
+                            </Button>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {field.tableName}.{field.columnName}
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">
+                              {field.displayName}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {field.tableName}.{field.columnName}
+                            </div>
                           </div>
                         </div>
                         <Button
@@ -700,6 +766,26 @@ const FormDesigner = ({
     });
   };
 
+  const moveCardUp = (index: number) => {
+    if (index <= 0) return;
+    const newCards = [...form.cards];
+    [newCards[index - 1], newCards[index]] = [newCards[index], newCards[index - 1]];
+    handleFormChange({
+      ...form,
+      cards: newCards.map((card, i) => ({ ...card, order: i })),
+    });
+  };
+
+  const moveCardDown = (index: number) => {
+    if (index >= form.cards.length - 1) return;
+    const newCards = [...form.cards];
+    [newCards[index], newCards[index + 1]] = [newCards[index + 1], newCards[index]];
+    handleFormChange({
+      ...form,
+      cards: newCards.map((card, i) => ({ ...card, order: i })),
+    });
+  };
+
   const addFieldToCard = (cardId: string, field: AvailableField) => {
     const targetCard = form.cards.find(c => c.id === cardId);
     
@@ -815,8 +901,8 @@ const FormDesigner = ({
             </Button>
           </div>
 
-          <ScrollArea className="h-[calc(100vh-250px)]">
-            <div className="space-y-4 pr-4">
+          <ScrollArea className="h-[calc(100vh-300px)]">
+            <div className="space-y-4 pr-4 pb-4">
               {form.cards.length === 0 ? (
                 <Card className="card-elevated">
                   <CardContent className="text-center py-12">
@@ -842,13 +928,17 @@ const FormDesigner = ({
                     items={form.cards.map((card) => card.id)}
                     strategy={verticalListSortingStrategy}
                   >
-                    {form.cards.map((card) => (
+                    {form.cards.map((card, index) => (
                       <SortableCard
                         key={card.id}
                         card={card}
                         onUpdate={updateCard}
                         onDelete={() => deleteCard(card.id)}
                         onAddField={(field) => addFieldToCard(card.id, field)}
+                        onMoveUp={() => moveCardUp(index)}
+                        onMoveDown={() => moveCardDown(index)}
+                        isFirst={index === 0}
+                        isLast={index === form.cards.length - 1}
                         availableFields={availableFields}
                       />
                     ))}
