@@ -6,19 +6,19 @@
       "displayName": "Pan Card",
       "fields": [
         {
-          "columnName": "kahan",
+          "columnName": "first_name",
           "tableName": "personal_details",
-          "displayName": "Kahan",
+          "displayName": "First Name",
           "description": ""
         },
         {
-          "columnName": "darsh",
+          "columnName": "last_namee",
           "tableName": "personal_details",
-          "displayName": "Darsh",
+          "displayName": "Last Namee",
           "description": ""
         }
       ]
     }
   ],
-  "lastModified": "2025-12-31T09:37:17.120Z"
+  "lastModified": "2025-12-31T09:48:37.772Z"
 }

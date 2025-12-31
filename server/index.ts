@@ -1855,8 +1855,10 @@ app.delete("/api/database/tables/:tableName/columns/:columnName", async (req, re
       await db.run('COMMIT');
 
       // CASCADE: Remove field from all form templates
+      console.log(`CASCADE: Starting cleanup for deleted column ${tableName}.${columnName}`);
       try {
         const forms = await db.all('SELECT id, cards FROM form_templates');
+        console.log(`CASCADE: Found ${forms.length} form templates to check`);
         for (const form of forms) {
           try {
             const cards = JSON.parse(form.cards);
@@ -1865,9 +1867,13 @@ app.delete("/api/database/tables/:tableName/columns/:columnName", async (req, re
             for (const card of cards) {
               if (card.fields && Array.isArray(card.fields)) {
                 const originalLength = card.fields.length;
-                card.fields = card.fields.filter((field: any) => 
-                  !(field.tableName === tableName && field.columnName === columnName)
-                );
+                card.fields = card.fields.filter((field: any) => {
+                  const shouldRemove = field.tableName === tableName && field.columnName === columnName;
+                  if (shouldRemove) {
+                    console.log(`CASCADE: Removing field ${field.tableName}.${field.columnName} from form ${form.id}`);
+                  }
+                  return !shouldRemove;
+                });
                 if (card.fields.length !== originalLength) {
                   modified = true;
                 }
@@ -1879,38 +1885,47 @@ app.delete("/api/database/tables/:tableName/columns/:columnName", async (req, re
                 'UPDATE form_templates SET cards = ?, updated_at = ? WHERE id = ?',
                 [JSON.stringify(cards), new Date().toISOString(), form.id]
               );
-              console.log(`Removed field ${tableName}.${columnName} from form template ${form.id}`);
+              console.log(`CASCADE: Updated form template ${form.id}`);
             }
           } catch (parseError) {
-            console.warn(`Error parsing cards for form ${form.id}:`, parseError);
+            console.warn(`CASCADE: Error parsing cards for form ${form.id}:`, parseError);
           }
         }
       } catch (formError) {
-        console.warn('Error updating form templates after column deletion:', formError);
+        console.error('CASCADE: Error updating form templates after column deletion:', formError);
       }
 
       // CASCADE: Remove field from document parsing schemas
       try {
         const config = await loadConfig();
+        console.log(`CASCADE: Checking ${config.schemas.length} document parsing schemas`);
         let configModified = false;
         
         for (const schema of config.schemas) {
           const originalLength = schema.fields.length;
-          schema.fields = schema.fields.filter(field => 
-            !(field.tableName === tableName && field.columnName === columnName)
-          );
+          schema.fields = schema.fields.filter(field => {
+            const shouldRemove = field.tableName === tableName && field.columnName === columnName;
+            if (shouldRemove) {
+              console.log(`CASCADE: Removing field ${field.tableName}.${field.columnName} from schema ${schema.documentType}`);
+            }
+            return !shouldRemove;
+          });
           if (schema.fields.length !== originalLength) {
             configModified = true;
-            console.log(`Removed field ${tableName}.${columnName} from document parsing schema ${schema.documentType}`);
           }
         }
         
         if (configModified) {
           await saveConfig(config);
+          console.log(`CASCADE: Document parsing config updated`);
+        } else {
+          console.log(`CASCADE: No matching fields found in document parsing schemas`);
         }
       } catch (configError) {
-        console.warn('Error updating document parsing config after column deletion:', configError);
+        console.error('CASCADE: Error updating document parsing config after column deletion:', configError);
       }
+
+      console.log(`CASCADE: Cleanup completed for ${tableName}.${columnName}`);
 
       res.json({
         success: true,
