@@ -25,7 +25,7 @@ import {
   Plus,
   Trash2,
   GripVertical,
-  Settings,
+  Edit,
   Eye,
   Save,
   X,
@@ -288,8 +288,6 @@ const SortableCard = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editCard, setEditCard] = useState(card);
   const [showFieldPalette, setShowFieldPalette] = useState(false);
-  const [configuringField, setConfiguringField] = useState<FieldInstance | null>(null);
-  const [fieldConfig, setFieldConfig] = useState<FieldInstance | null>(null);
 
   const isDocCard = isDocumentCard(card);
 
@@ -336,33 +334,6 @@ const SortableCard = ({
       fields: card.fields.filter(f => f.id !== fieldId),
     };
     onUpdate(updatedCard);
-  };
-
-  const configureField = (fieldId: string) => {
-    const field = card.fields.find(f => f.id === fieldId);
-    if (field) {
-      setConfiguringField(field);
-      setFieldConfig({ ...field });
-    }
-  };
-
-  const handleFieldConfigSave = () => {
-    if (!configuringField || !fieldConfig) return;
-
-    const updatedCard = {
-      ...card,
-      fields: card.fields.map(f => 
-        f.id === configuringField.id ? fieldConfig : f
-      ),
-    };
-    onUpdate(updatedCard);
-    setConfiguringField(null);
-    setFieldConfig(null);
-  };
-
-  const handleFieldConfigCancel = () => {
-    setConfiguringField(null);
-    setFieldConfig(null);
   };
 
   return (
@@ -418,7 +389,7 @@ const SortableCard = ({
                   size="sm"
                   onClick={() => setIsEditing(true)}
                 >
-                  <Settings className="h-4 w-4" />
+                  <Edit className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="ghost"
@@ -486,21 +457,11 @@ const SortableCard = ({
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => configureField(field.id)}
-                            className="h-6 w-6 p-0 text-blue-600 hover:text-blue-700"
+                            onClick={() => removeField(field.id)}
+                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
                           >
-                            <Settings className="h-3 w-3" />
+                            <X className="h-3 w-3" />
                           </Button>
-                          {!isDocCard && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeField(field.id)}
-                              className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          )}
                         </div>
                       </div>
                       <div className="flex items-center space-x-2 text-xs">
@@ -647,164 +608,6 @@ const SortableCard = ({
               cardType={card.cardType}
             />
           </div>
-        </DialogContent>
-      </Dialog>
-      {/* Field Configuration Dialog */}
-      <Dialog open={!!configuringField} onOpenChange={(open) => !open && handleFieldConfigCancel()}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Configure Field</DialogTitle>
-            <DialogDescription>
-              Customize the field properties, validation, and display options.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {fieldConfig && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Display Name *</label>
-                <Input
-                  type="text"
-                  placeholder="Enter field display name"
-                  value={fieldConfig.displayName}
-                  onChange={(e) => setFieldConfig({ ...fieldConfig, displayName: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  This is the label shown to users
-                </p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-2">Placeholder Text</label>
-                <Input
-                  type="text"
-                  placeholder="Enter placeholder text"
-                  value={fieldConfig.placeholder || ''}
-                  onChange={(e) => setFieldConfig({ ...fieldConfig, placeholder: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Hint text shown inside the input field
-                </p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-2">Help Text</label>
-                <Textarea
-                  placeholder="Enter help text (optional)"
-                  value={fieldConfig.helpText || ''}
-                  onChange={(e) => setFieldConfig({ ...fieldConfig, helpText: e.target.value })}
-                  rows={2}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Additional information shown below the field
-                </p>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="text-sm font-medium">Required Field</label>
-                    <p className="text-xs text-muted-foreground">
-                      Users must fill this field to submit the form
-                    </p>
-                  </div>
-                  <Switch
-                    checked={fieldConfig.isRequired}
-                    onCheckedChange={(checked) => setFieldConfig({ 
-                      ...fieldConfig, 
-                      isRequired: checked,
-                      validation: { ...fieldConfig.validation, required: checked }
-                    })}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="text-sm font-medium">Read-only Field</label>
-                    <p className="text-xs text-muted-foreground">
-                      Field is displayed but cannot be edited
-                    </p>
-                  </div>
-                  <Switch
-                    checked={fieldConfig.isReadonly}
-                    onCheckedChange={(checked) => setFieldConfig({ ...fieldConfig, isReadonly: checked })}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="text-sm font-medium">Enable Copy Button</label>
-                    <p className="text-xs text-muted-foreground">
-                      Show a copy button next to the field value
-                    </p>
-                  </div>
-                  <Switch
-                    checked={fieldConfig.enableCopy}
-                    onCheckedChange={(checked) => setFieldConfig({ ...fieldConfig, enableCopy: checked })}
-                  />
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Field Width</label>
-                <div className="flex space-x-2">
-                  {[
-                    { value: 'full', label: 'Full Width' },
-                    { value: 'half', label: 'Half Width' },
-                    { value: 'third', label: 'Third Width' }
-                  ].map((option) => (
-                    <Button
-                      key={option.value}
-                      variant={(fieldConfig.styling?.width || 'full') === option.value ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setFieldConfig({
-                        ...fieldConfig,
-                        styling: { ...fieldConfig.styling, width: option.value as 'full' | 'half' | 'third' }
-                      })}
-                    >
-                      {option.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Label Position</label>
-                <div className="flex space-x-2">
-                  {[
-                    { value: 'top', label: 'Top' },
-                    { value: 'left', label: 'Left' },
-                    { value: 'hidden', label: 'Hidden' }
-                  ].map((option) => (
-                    <Button
-                      key={option.value}
-                      variant={(fieldConfig.styling?.labelPosition || 'top') === option.value ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setFieldConfig({
-                        ...fieldConfig,
-                        styling: { ...fieldConfig.styling, labelPosition: option.value as 'top' | 'left' | 'hidden' }
-                      })}
-                    >
-                      {option.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button variant="outline" onClick={handleFieldConfigCancel}>
-                  Cancel
-                </Button>
-                <Button onClick={handleFieldConfigSave}>
-                  Save Configuration
-                </Button>
-              </div>
-            </div>
-          )}
         </DialogContent>
       </Dialog>
     </>
