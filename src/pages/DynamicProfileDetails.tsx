@@ -766,23 +766,10 @@ const DynamicProfileDetails = () => {
         {section.data.map((record, index) => (
           <Card key={index}>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <Table className="h-5 w-5 mr-2" />
-                  {section.displayName}
-                  {section.data.length > 1 && <Badge className="ml-2">Record {index + 1}</Badge>}
-                </div>
-                {!isInformationEditMode && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => copyCardData(section, record)}
-                    className="text-xs"
-                  >
-                    <Copy className="h-3 w-3 mr-1" />
-                    Copy Card Data
-                  </Button>
-                )}
+              <CardTitle className="flex items-center">
+                <Table className="h-5 w-5 mr-2" />
+                {section.displayName}
+                {section.data.length > 1 && <Badge className="ml-2">Record {index + 1}</Badge>}
               </CardTitle>
             </CardHeader>
             <CardContent>
