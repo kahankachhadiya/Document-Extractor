@@ -19,6 +19,15 @@ import {
 } from "./utils/errors.js";
 import multer from "multer";
 import fs from "fs/promises";
+import {
+  loadConfig,
+  saveConfig,
+  addOrUpdateSchema,
+  deleteSchema,
+  getUsedFields,
+  isFieldUsed,
+  hasConfiguredSchemas
+} from './config/documentParsingConfig.js';
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -1845,6 +1854,64 @@ app.delete("/api/database/tables/:tableName/columns/:columnName", async (req, re
       // Commit transaction
       await db.run('COMMIT');
 
+      // CASCADE: Remove field from all form templates
+      try {
+        const forms = await db.all('SELECT id, cards FROM form_templates');
+        for (const form of forms) {
+          try {
+            const cards = JSON.parse(form.cards);
+            let modified = false;
+            
+            for (const card of cards) {
+              if (card.fields && Array.isArray(card.fields)) {
+                const originalLength = card.fields.length;
+                card.fields = card.fields.filter((field: any) => 
+                  !(field.tableName === tableName && field.columnName === columnName)
+                );
+                if (card.fields.length !== originalLength) {
+                  modified = true;
+                }
+              }
+            }
+            
+            if (modified) {
+              await db.run(
+                'UPDATE form_templates SET cards = ?, updated_at = ? WHERE id = ?',
+                [JSON.stringify(cards), new Date().toISOString(), form.id]
+              );
+              console.log(`Removed field ${tableName}.${columnName} from form template ${form.id}`);
+            }
+          } catch (parseError) {
+            console.warn(`Error parsing cards for form ${form.id}:`, parseError);
+          }
+        }
+      } catch (formError) {
+        console.warn('Error updating form templates after column deletion:', formError);
+      }
+
+      // CASCADE: Remove field from document parsing schemas
+      try {
+        const config = await loadConfig();
+        let configModified = false;
+        
+        for (const schema of config.schemas) {
+          const originalLength = schema.fields.length;
+          schema.fields = schema.fields.filter(field => 
+            !(field.tableName === tableName && field.columnName === columnName)
+          );
+          if (schema.fields.length !== originalLength) {
+            configModified = true;
+            console.log(`Removed field ${tableName}.${columnName} from document parsing schema ${schema.documentType}`);
+          }
+        }
+        
+        if (configModified) {
+          await saveConfig(config);
+        }
+      } catch (configError) {
+        console.warn('Error updating document parsing config after column deletion:', configError);
+      }
+
       res.json({
         success: true,
         message: `Column "${columnName}" deleted successfully`
@@ -3163,15 +3230,7 @@ app.delete("/api/profiles/:id", async (req, res) => {
 });
 
 // Document Parsing Configuration API Endpoints
-import {
-  loadConfig,
-  saveConfig,
-  addOrUpdateSchema,
-  deleteSchema,
-  getUsedFields,
-  isFieldUsed,
-  hasConfiguredSchemas
-} from './config/documentParsingConfig.js';
+// (imports moved to top of file)
 
 // Document Processor Service
 import { documentProcessorService } from './services/documentProcessorService.js';
