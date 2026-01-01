@@ -88,22 +88,27 @@ const FormCard = ({
       }
 
       // Otherwise, send to backend clipboard server
+      const fieldValues = fieldData.map(item => String(item.value));
+      
       const response = await fetch('/api/copy-card-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          cardTitle: card.title,
-          fields: fieldData
+          fieldValues: fieldValues
         })
       });
 
-      if (response.ok) {
+      const result = await response.json();
+
+      if (result.success) {
         toast({
           title: "Card Data Copied",
-          description: `${fieldData.length} field(s) ready for pasting`,
+          description: result.exeNotFound 
+            ? `${fieldValues.length} values ready (form filler not found)`
+            : `${fieldValues.length} values sent to form filler`,
         });
       } else {
-        throw new Error('Failed to copy card data');
+        throw new Error(result.error || 'Failed to copy card data');
       }
     } catch (error) {
       console.error('Error copying card data:', error);

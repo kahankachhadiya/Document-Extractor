@@ -1096,13 +1096,32 @@ app.post("/api/copy-card-data", async (req, res) => {
       await fs.mkdir(path.dirname(tempInputPath), { recursive: true });
       await fs.writeFile(tempInputPath, JSON.stringify(processorData, null, 2));
       
-      // Spawn the clipboard_server with file input
-      const process = spawn(exePath, ['--input-file', tempInputPath], {
-        detached: true,
-        stdio: 'ignore'
-      });
+      // Create a VBS script to run the process completely silently (Windows only)
+      const vbsScript = `
+Set WshShell = CreateObject("WScript.Shell")
+WshShell.Run """${exePath}"" --input-file ""${tempInputPath}""", 0, False
+      `.trim();
       
-      process.unref();
+      const vbsPath = path.join(__dirname, 'config', 'run_silent.vbs');
+      await fs.writeFile(vbsPath, vbsScript);
+      
+      // Execute the VBS script which will run the clipboard server silently
+      const { exec } = await import('child_process');
+      exec(`cscript //nologo "${vbsPath}"`, (error) => {
+        // Clean up the VBS file after execution
+        fs.unlink(vbsPath).catch(() => {});
+        
+        if (error) {
+          console.log('VBS method failed, using fallback');
+          // Fallback to spawn method
+          const process = spawn(exePath, ['--input-file', tempInputPath], {
+            detached: true,
+            stdio: 'ignore',
+            windowsHide: true
+          });
+          process.unref();
+        }
+      });
       
       console.log('Clipboard server started with data:', processorData);
       

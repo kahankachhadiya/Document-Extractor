@@ -453,12 +453,18 @@ const DynamicProfileDetails = () => {
       const systemFields = ['client_id', 'student_id', 'created_at', 'updated_at'];
       const fieldValues: string[] = [];
       
+      console.log('Copy card data - section schema:', section.schema);
+      console.log('Copy card data - record:', record);
+      
       section.schema
         .filter(col => !systemFields.includes(col.name))
         .filter(col => record.hasOwnProperty(col.name) && record[col.name] !== null && record[col.name] !== '')
         .forEach(col => {
+          console.log(`Adding field ${col.name}: ${record[col.name]}`);
           fieldValues.push(String(record[col.name]));
         });
+
+      console.log('Field values to copy:', fieldValues);
 
       if (fieldValues.length === 0) {
         toast({
@@ -476,7 +482,15 @@ const DynamicProfileDetails = () => {
         body: JSON.stringify({ fieldValues })
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const result = await response.json();
+      console.log('API response:', result);
 
       if (result.success) {
         toast({
@@ -486,13 +500,13 @@ const DynamicProfileDetails = () => {
             : `${fieldValues.length} values sent to form filler`,
         });
       } else {
-        throw new Error(result.error);
+        throw new Error(result.error || 'Unknown error');
       }
     } catch (error) {
       console.error('Error copying card data:', error);
       toast({
         title: "Error",
-        description: "Failed to copy card data",
+        description: `Failed to copy card data: ${error.message}`,
         variant: "destructive",
       });
     }
