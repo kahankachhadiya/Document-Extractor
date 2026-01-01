@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Edit, User, Database, Table, AlertCircle, CheckCircle2, Save, X, Copy, FileText, ClipboardList, Info, ExternalLink, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import CustomFormRenderer from "@/components/CustomFormRenderer";
-import FormSelector from "@/components/FormSelector";
 import DataCompatibilityIndicator from "@/components/DataCompatibilityIndicator";
 
 interface TableSection {
@@ -92,7 +91,8 @@ const DynamicProfileDetails = () => {
         const userTables = tables.filter((table: any) => 
           table.name !== 'column_metadata' && 
           table.name !== 'sqlite_sequence' && 
-          table.name !== 'sqlite_stat1'
+          table.name !== 'sqlite_stat1' &&
+          table.name !== 'document_parsing_schemas'
         );
         
         // Fetch schema for each table
@@ -1413,14 +1413,6 @@ const DynamicProfileDetails = () => {
             <TabsContent value="forms" className="mt-6">
               {profile?.clientId && (
                 <div className="space-y-6">
-                  {/* Form Selector */}
-                  <FormSelector
-                    clientId={parseInt(profile.clientId)}
-                    selectedFormId={selectedFormId || undefined}
-                    onFormChange={handleFormChange}
-                    onDataCompatibilityCheck={handleDataCompatibilityCheck}
-                  />
-
                   {/* Data Compatibility Indicator */}
                   {dataCompatibilityInfo && (
                     <DataCompatibilityIndicator
@@ -1429,48 +1421,11 @@ const DynamicProfileDetails = () => {
                   )}
 
                   {/* Custom Form Renderer */}
-                  {selectedFormId ? (
-                    <CustomFormRenderer
-                      clientId={parseInt(profile.clientId)}
-                      formTemplateId={selectedFormId}
-                      isEditable={true}
-                      onFormChange={handleFormChange}
-                      onFieldChange={(fieldId, value) => {
-                        console.log('Field changed:', fieldId, value);
-                      }}
-                      onCopyField={(fieldId, value) => {
-                        copyToClipboard(value.toString(), fieldId);
-                      }}
-                      onDocumentUpload={(files) => {
-                        console.log('Documents uploaded:', files);
-                        toast({
-                          title: "Documents Uploaded",
-                          description: `${files.length} document(s) uploaded successfully`,
-                          duration: 3000,
-                        });
-                      }}
-                    />
-                  ) : (
-                    <CustomFormRenderer
-                      clientId={parseInt(profile.clientId)}
-                      isEditable={true}
-                      onFormChange={handleFormChange}
-                      onFieldChange={(fieldId, value) => {
-                        console.log('Field changed:', fieldId, value);
-                      }}
-                      onCopyField={(fieldId, value) => {
-                        copyToClipboard(value.toString(), fieldId);
-                      }}
-                      onDocumentUpload={(files) => {
-                        console.log('Documents uploaded:', files);
-                        toast({
-                          title: "Documents Uploaded",
-                          description: `${files.length} document(s) uploaded successfully`,
-                          duration: 3000,
-                        });
-                      }}
-                    />
-                  )}
+                  <CustomFormRenderer
+                    clientId={parseInt(profile.clientId)}
+                    formTemplateId={selectedFormId}
+                    onFormChange={handleFormChange}
+                  />
                 </div>
               )}
             </TabsContent>
