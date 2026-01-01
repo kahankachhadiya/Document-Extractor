@@ -796,7 +796,7 @@ const FormDesigner = ({
     }
     
     // Validation: Prevent system table fields from being added to any cards
-    const systemTables = ['form_templates', 'column_metadata'];
+    const systemTables = ['form_templates', 'column_metadata', 'document_parsing_schemas'];
     if (systemTables.includes(field.tableName)) {
       console.warn(`Cannot add fields from system table ${field.tableName} to cards`);
       return;

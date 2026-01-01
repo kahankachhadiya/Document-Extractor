@@ -116,17 +116,13 @@ backend/
 !backend/document-processor.exe
 backend/logs/*.log
 
-# Server data - exclude uploaded files but keep directory structure  
-server/Data/
-!server/Data/.gitkeep
-!server/Data/temp/
-!server/Data/temp/.gitkeep
-!server/Data/documents/
-!server/Data/documents/.gitkeep
-server/Data/temp/*
-!server/Data/temp/.gitkeep
-server/Data/documents/*
-!server/Data/documents/.gitkeep
+# Backend data - exclude uploaded files but keep directory structure  
+backend/Data/
+!backend/Data/.gitkeep
+!backend/Data/temp/
+!backend/Data/temp/.gitkeep
+backend/Data/temp/*
+!backend/Data/temp/.gitkeep
 
 # Database files
 server/*.db

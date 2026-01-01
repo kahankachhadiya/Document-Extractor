@@ -1,5 +1,5 @@
-import fs from 'fs/promises';
-import path from 'path';
+import { Database } from 'sqlite';
+import sqlite3 from 'sqlite3';
 
 // Interface definitions for document parsing configuration
 export interface SchemaField {
@@ -21,54 +21,66 @@ export interface DocumentParsingConfig {
   lastModified: string;
 }
 
-// Configuration file path - use process.cwd() for compatibility
-const CONFIG_FILE_PATH = path.join(process.cwd(), 'server', 'config', 'document-parsing-config.json');
-const BACKUP_FILE_PATH = path.join(process.cwd(), 'server', 'config', 'document-parsing-config.backup.json');
+// Database instance - will be injected
+let db: Database<sqlite3.Database, sqlite3.Statement>;
 
 /**
- * Load document parsing configuration from JSON file
- * Creates default empty config if file doesn't exist
- * Handles corrupted JSON gracefully with backup and reset
+ * Initialize the document parsing config service with database instance
+ */
+export function initializeDocumentParsingConfig(database: Database<sqlite3.Database, sqlite3.Statement>): void {
+  db = database;
+}
+
+/**
+ * Load document parsing configuration from database
+ * Creates default empty config if no records exist
  */
 export async function loadConfig(): Promise<DocumentParsingConfig> {
   try {
-    // Try to read the main config file
-    const configData = await fs.readFile(CONFIG_FILE_PATH, 'utf-8');
-    const config = JSON.parse(configData);
-    
-    // Validate config structure
-    if (!isValidConfig(config)) {
-      console.warn('Invalid config structure detected, creating backup and resetting');
-      await createBackupAndReset();
-      return getDefaultConfig();
+    if (!db) {
+      throw new Error('Database not initialized. Call initializeDocumentParsingConfig first.');
     }
-    
-    return config;
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      // File doesn't exist, create default config
-      console.log('Config file not found, creating default configuration');
+
+    // Get the main config record
+    const configRecord = await db.get(
+      'SELECT data FROM document_parsing_schemas WHERE field_name = ?',
+      ['main_config']
+    );
+
+    if (configRecord) {
+      const config = JSON.parse(configRecord.data);
+      
+      // Validate config structure
+      if (!isValidConfig(config)) {
+        console.warn('Invalid config structure detected in database, resetting to default');
+        const defaultConfig = getDefaultConfig();
+        await saveConfig(defaultConfig);
+        return defaultConfig;
+      }
+      
+      return config;
+    } else {
+      // No config exists, create default
+      console.log('No config found in database, creating default configuration');
       const defaultConfig = getDefaultConfig();
       await saveConfig(defaultConfig);
       return defaultConfig;
-    } else if (error instanceof SyntaxError) {
-      // Corrupted JSON, create backup and reset
-      console.error('Corrupted JSON detected in config file, creating backup and resetting');
-      await createBackupAndReset();
-      return getDefaultConfig();
-    } else {
-      // Other errors (permissions, etc.)
-      console.error('Error loading config file:', error);
-      throw new Error(`Failed to load document parsing configuration: ${error.message}`);
     }
+  } catch (error) {
+    console.error('Error loading config from database:', error);
+    throw new Error(`Failed to load document parsing configuration: ${error.message}`);
   }
 }
 
 /**
- * Save document parsing configuration to JSON file
+ * Save document parsing configuration to database
  */
 export async function saveConfig(config: DocumentParsingConfig): Promise<void> {
   try {
+    if (!db) {
+      throw new Error('Database not initialized. Call initializeDocumentParsingConfig first.');
+    }
+
     // Update last modified timestamp
     config.lastModified = new Date().toISOString();
     
@@ -82,13 +94,18 @@ export async function saveConfig(config: DocumentParsingConfig): Promise<void> {
       validateSchemaFieldUniqueness(schema);
     }
     
-    // Write to file with proper formatting
-    const configJson = JSON.stringify(config, null, 2);
-    await fs.writeFile(CONFIG_FILE_PATH, configJson, 'utf-8');
+    // Save to database
+    const configJson = JSON.stringify(config);
+    const now = new Date().toISOString();
     
-    console.log('Document parsing configuration saved successfully');
+    await db.run(`
+      INSERT OR REPLACE INTO document_parsing_schemas (field_name, data, created_at, updated_at)
+      VALUES (?, ?, COALESCE((SELECT created_at FROM document_parsing_schemas WHERE field_name = ?), ?), ?)
+    `, ['main_config', configJson, 'main_config', now, now]);
+    
+    console.log('Document parsing configuration saved successfully to database');
   } catch (error) {
-    console.error('Error saving config file:', error);
+    console.error('Error saving config to database:', error);
     throw new Error(`Failed to save document parsing configuration: ${error.message}`);
   }
 }
@@ -214,32 +231,6 @@ function deduplicateFields(fields: SchemaField[]): SchemaField[] {
 }
 
 /**
- * Create backup of corrupted config and reset to default
- */
-async function createBackupAndReset(): Promise<void> {
-  try {
-    // Try to create backup of corrupted file
-    try {
-      const corruptedData = await fs.readFile(CONFIG_FILE_PATH, 'utf-8');
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const backupPath = path.join(process.cwd(), 'server', `document-parsing-config.corrupted.${timestamp}.json`);
-      await fs.writeFile(backupPath, corruptedData, 'utf-8');
-      console.log(`Corrupted config backed up to: ${backupPath}`);
-    } catch (backupError) {
-      console.warn('Could not create backup of corrupted config:', backupError.message);
-    }
-    
-    // Create and save default config
-    const defaultConfig = getDefaultConfig();
-    await saveConfig(defaultConfig);
-    console.log('Reset to default configuration');
-  } catch (error) {
-    console.error('Error during backup and reset:', error);
-    throw error;
-  }
-}
-
-/**
  * Get all used fields across all schemas (for field uniqueness validation)
  */
 export function getUsedFields(config: DocumentParsingConfig): Set<string> {
@@ -356,4 +347,64 @@ export async function getSchemaForDocumentType(documentType: string): Promise<Do
 export async function hasConfiguredSchemas(): Promise<boolean> {
   const config = await loadConfig();
   return config.schemas.some(schema => schema.fields.length > 0);
+}
+
+/**
+ * Migration function to move data from JSON file to database (if needed)
+ * This can be called during startup to handle any existing JSON configurations
+ */
+export async function migrateFromJsonToDatabase(): Promise<void> {
+  try {
+    if (!db) {
+      throw new Error('Database not initialized. Call initializeDocumentParsingConfig first.');
+    }
+
+    // Check if we already have data in the database
+    const existingConfig = await db.get(
+      'SELECT data FROM document_parsing_schemas WHERE field_name = ?',
+      ['main_config']
+    );
+
+    if (existingConfig) {
+      console.log('Database already contains document parsing configuration, skipping migration');
+      return;
+    }
+
+    // Check if old JSON file exists
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const jsonFilePath = path.join(process.cwd(), 'server', 'config', 'document-parsing-config.json');
+    
+    try {
+      const jsonData = await fs.readFile(jsonFilePath, 'utf-8');
+      const jsonConfig = JSON.parse(jsonData);
+      
+      if (isValidConfig(jsonConfig) && jsonConfig.schemas.length > 0) {
+        console.log('Migrating existing JSON configuration to database...');
+        await saveConfig(jsonConfig);
+        
+        // Create backup of the JSON file before removing it
+        const backupPath = path.join(process.cwd(), 'server', 'config', 'document-parsing-config.migrated.json');
+        await fs.copyFile(jsonFilePath, backupPath);
+        await fs.unlink(jsonFilePath);
+        
+        console.log(`Migration completed. JSON file backed up to: ${backupPath}`);
+      } else {
+        console.log('JSON file exists but contains no valid schemas, creating default config in database');
+        await saveConfig(getDefaultConfig());
+      }
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        console.log('No existing JSON configuration file found, creating default config in database');
+        await saveConfig(getDefaultConfig());
+      } else {
+        console.warn('Error reading JSON configuration file during migration:', error.message);
+        console.log('Creating default config in database');
+        await saveConfig(getDefaultConfig());
+      }
+    }
+  } catch (error) {
+    console.error('Error during migration from JSON to database:', error);
+    throw error;
+  }
 }

@@ -26,7 +26,9 @@ import {
   deleteSchema,
   getUsedFields,
   isFieldUsed,
-  hasConfiguredSchemas
+  hasConfiguredSchemas,
+  initializeDocumentParsingConfig,
+  migrateFromJsonToDatabase
 } from './config/documentParsingConfig.js';
 
 // Get __dirname equivalent for ES modules
@@ -36,7 +38,7 @@ const __dirname = path.dirname(__filename);
 // Enhanced Express + SQLite server with normalized student management database
 
 // System tables that should not be shown in the UI
-const SYSTEM_TABLES = ['column_metadata', 'sqlite_sequence', 'sqlite_stat1', 'form_templates'];
+const SYSTEM_TABLES = ['column_metadata', 'sqlite_sequence', 'sqlite_stat1', 'form_templates', 'document_parsing_schemas'];
 
 const app = express();
 app.use(cors());
@@ -56,7 +58,7 @@ const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
     try {
       // Use a temporary directory for initial upload
-      const tempDir = path.join(__dirname, 'Data', 'temp');
+      const tempDir = path.join(__dirname, '..', 'backend', 'Data', 'temp');
       
       // Create directory if it doesn't exist
       await fs.mkdir(tempDir, { recursive: true });
@@ -107,7 +109,7 @@ const upload = multer({
 
 async function initDb() {
   try {
-    const dbPath = path.join(__dirname, "student_management.db");
+    const dbPath = path.join(__dirname, "..", "backend", "student_management.db");
     console.log('Initializing database at:', dbPath);
 
     db = await open({
@@ -129,6 +131,12 @@ async function initDb() {
     formConfigurationService = new FormConfigurationService(db);
     documentIntegrationService = new DocumentIntegrationService(db);
     fieldDiscoveryService = new FieldDiscoveryService(db);
+
+    // Initialize document parsing config service
+    initializeDocumentParsingConfig(db);
+
+    // Migrate any existing JSON configuration to database
+    await migrateFromJsonToDatabase();
 
     // Initialize form configuration tables
     await formConfigurationService.initializeTables();
@@ -181,6 +189,17 @@ async function createTables() {
         notes TEXT,
         is_required TEXT DEFAULT '0',
         FOREIGN KEY (client_id) REFERENCES personal_details(client_id) ON DELETE CASCADE
+      )
+    `);
+
+    // Create document_parsing_schemas table
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS document_parsing_schemas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        field_name TEXT NOT NULL UNIQUE,
+        data TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `);
 
@@ -1246,7 +1265,7 @@ app.post('/api/upload/document', (req, res) => {
         .replace(/^_|_$/g, '');
       
       const finalFilename = `${clientId}_${sanitizedColumnName}${ext}`;
-      const clientDir = path.join(__dirname, 'Data', clientId.toString());
+      const clientDir = path.join(__dirname, '..', 'backend', 'Data', clientId.toString());
       const finalPath = path.join(clientDir, finalFilename);
       
       // Create client directory if it doesn't exist
@@ -1307,10 +1326,10 @@ app.get('/api/documents/view/:clientId/:filename', async (req, res) => {
     const safeFilename = path.normalize(filename).replace(/^(\.\.[\/\\])+/, '');
     
     // Construct the full file path
-    const fullPath = path.join(__dirname, 'Data', clientId, safeFilename);
+    const fullPath = path.join(__dirname, '..', 'backend', 'Data', clientId, safeFilename);
     
     // Security: Verify file is within the allowed client directory
-    const clientDir = path.join(__dirname, 'Data', clientId);
+    const clientDir = path.join(__dirname, '..', 'backend', 'Data', clientId);
     const resolvedFullPath = path.resolve(fullPath);
     const resolvedClientDir = path.resolve(clientDir);
     
@@ -1360,8 +1379,8 @@ app.post('/api/documents/move-temp-files', async (req, res) => {
     
     console.log(`Moving files from temp client ${tempClientId} to real client ${realClientId}`);
     
-    const tempDir = path.join(__dirname, 'Data', tempClientId.toString());
-    const realDir = path.join(__dirname, 'Data', realClientId.toString());
+    const tempDir = path.join(__dirname, '..', 'backend', 'Data', tempClientId.toString());
+    const realDir = path.join(__dirname, '..', 'backend', 'Data', realClientId.toString());
     
     // Check if temp directory exists
     try {
@@ -1427,51 +1446,108 @@ app.delete('/api/documents/cleanup-column/:tableName/:columnName', async (req, r
     // Get all client IDs that have data in this table
     const clients = await db.all(`SELECT DISTINCT client_id FROM ${tableName}`);
     
-    let deletedCount = 0;
+    let totalDeleted = 0;
     const errors: string[] = [];
     
     // For each client, try to delete the file associated with this column
     for (const client of clients) {
       const clientId = client.client_id;
-      const dataDir = path.join(__dirname, 'Data', clientId.toString());
       
       try {
-        // List all files in student directory
-        const files = await fs.readdir(dataDir);
-        
-        // Find files that match the pattern: {clientId}_{columnName}.*
-        const sanitizedColumnName = columnName
-          .toLowerCase()
-          .replace(/[^a-z0-9_]/g, '_')
-          .replace(/_+/g, '_')
-          .replace(/^_|_$/g, '');
-        
-        const pattern = `${clientId}_${sanitizedColumnName}.`;
-        
-        for (const file of files) {
-          if (file.startsWith(pattern)) {
-            const filePath = path.join(dataDir, file);
-            await fs.unlink(filePath);
-            deletedCount++;
-            console.log(`Deleted file: ${filePath}`);
-          }
-        }
+        const deletedCount = await cleanupDocumentPDFs(clientId.toString(), columnName);
+        totalDeleted += deletedCount;
       } catch (error) {
-        // Directory might not exist or other errors
         errors.push(`Error cleaning up files for client ${clientId}: ${error.message}`);
       }
     }
     
     res.json({
       success: true,
-      deletedCount,
-      message: `Deleted ${deletedCount} file(s) associated with column ${columnName}`,
+      deletedCount: totalDeleted,
+      message: `Deleted ${totalDeleted} file(s) associated with column ${columnName}`,
       errors: errors.length > 0 ? errors : undefined
     });
   } catch (error) {
     console.error('Error cleaning up column files:', error);
     res.status(500).json({
       error: 'Failed to cleanup column files',
+      details: error.message || 'An unexpected error occurred'
+    });
+  }
+});
+
+// Cleanup orphaned files endpoint - deletes files that don't have corresponding database records
+app.delete('/api/documents/cleanup-orphaned', async (req, res) => {
+  try {
+    console.log('Starting cleanup of orphaned document files...');
+    
+    const dataDir = path.join(__dirname, '..', 'backend', 'Data');
+    const entries = await fs.readdir(dataDir, { withFileTypes: true });
+    
+    let totalDeleted = 0;
+    let totalChecked = 0;
+    const errors: string[] = [];
+    
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name !== 'temp') {
+        const clientId = entry.name;
+        const clientDir = path.join(dataDir, clientId);
+        
+        try {
+          // Check if client exists in database
+          const clientExists = await db.get('SELECT client_id FROM personal_details WHERE client_id = ?', [clientId]);
+          
+          if (!clientExists) {
+            // Client doesn't exist, delete entire directory
+            await fs.rm(clientDir, { recursive: true, force: true });
+            console.log(`CLEANUP: Deleted entire directory for non-existent client ${clientId}`);
+            totalDeleted++;
+            continue;
+          }
+          
+          // Client exists, check individual files
+          const files = await fs.readdir(clientDir);
+          
+          for (const file of files) {
+            totalChecked++;
+            
+            // Parse filename to extract column name: clientId_columnName.extension
+            const parts = file.split('_');
+            if (parts.length >= 2 && parts[0] === clientId) {
+              const columnName = parts.slice(1).join('_').split('.')[0]; // Handle multiple underscores
+              
+              // Check if this column exists in documents table and has a record for this client
+              const documentRecord = await db.get(
+                `SELECT ${columnName} FROM documents WHERE client_id = ? AND ${columnName} IS NOT NULL AND ${columnName} != ''`,
+                [clientId]
+              );
+              
+              if (!documentRecord) {
+                // No database record for this file, delete it
+                const filePath = path.join(clientDir, file);
+                await fs.unlink(filePath);
+                console.log(`CLEANUP: Deleted orphaned file ${filePath}`);
+                totalDeleted++;
+              }
+            }
+          }
+        } catch (error) {
+          errors.push(`Error processing client ${clientId}: ${error.message}`);
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      deletedCount: totalDeleted,
+      checkedCount: totalChecked,
+      message: `Cleaned up ${totalDeleted} orphaned files (checked ${totalChecked} files)`,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (error) {
+    console.error('Error cleaning up orphaned files:', error);
+    res.status(500).json({
+      error: 'Failed to cleanup orphaned files',
       details: error.message || 'An unexpected error occurred'
     });
   }
@@ -1961,6 +2037,30 @@ app.delete("/api/database/tables/:tableName/columns/:columnName", async (req, re
       // Commit transaction
       await db.run('COMMIT');
 
+      // SPECIAL CASE: If deleting a column from documents table, clean up associated PDF files
+      if (tableName === 'documents') {
+        console.log(`CLEANUP: Starting PDF cleanup for deleted documents column ${columnName}`);
+        try {
+          // Get all client directories
+          const dataDir = path.join(__dirname, '..', 'backend', 'Data');
+          const entries = await fs.readdir(dataDir, { withFileTypes: true });
+          
+          let totalDeleted = 0;
+          for (const entry of entries) {
+            if (entry.isDirectory() && entry.name !== 'temp') {
+              const clientId = entry.name;
+              const deletedCount = await cleanupDocumentPDFs(clientId, columnName);
+              totalDeleted += deletedCount;
+            }
+          }
+          
+          console.log(`CLEANUP: Total ${totalDeleted} PDF files deleted for column ${columnName}`);
+        } catch (cleanupError) {
+          console.error('CLEANUP: Error during PDF cleanup for column deletion:', cleanupError);
+          // Don't fail the operation if cleanup fails
+        }
+      }
+
       // CASCADE: Remove field from all form templates
       console.log(`CASCADE: Starting cleanup for deleted column ${tableName}.${columnName}`);
       try {
@@ -2030,6 +2130,17 @@ app.delete("/api/database/tables/:tableName/columns/:columnName", async (req, re
         }
       } catch (configError) {
         console.error('CASCADE: Error updating document parsing config after column deletion:', configError);
+      }
+
+      // CASCADE: Remove column metadata
+      try {
+        const result = await db.run(
+          'DELETE FROM column_metadata WHERE table_name = ? AND column_name = ?',
+          [tableName, columnName]
+        );
+        console.log(`CASCADE: Removed ${result.changes} column metadata records for ${tableName}.${columnName}`);
+      } catch (metadataError) {
+        console.error('CASCADE: Error removing column metadata after column deletion:', metadataError);
       }
 
       console.log(`CASCADE: Cleanup completed for ${tableName}.${columnName}`);
@@ -2156,12 +2267,76 @@ app.put("/api/database/tables/:tableName/columns/:columnName", async (req, res) 
 
       // Update column_metadata table if it exists
       try {
-        await db.run(
+        const metadataResult = await db.run(
           `UPDATE column_metadata SET column_name = ? WHERE table_name = ? AND column_name = ?`,
           [sanitizedNewName, tableName, columnName]
         );
+        console.log(`CASCADE: Updated ${metadataResult.changes} column metadata records for ${tableName}.${columnName} -> ${sanitizedNewName}`);
       } catch (metadataError) {
-        console.warn('Could not update column_metadata:', metadataError.message);
+        console.warn('CASCADE: Could not update column_metadata:', metadataError.message);
+      }
+
+      // CASCADE: Update field references in form templates
+      try {
+        const forms = await db.all('SELECT id, cards FROM form_templates');
+        console.log(`CASCADE: Found ${forms.length} form templates to check for column rename`);
+        
+        for (const form of forms) {
+          try {
+            const cards = JSON.parse(form.cards);
+            let modified = false;
+            
+            for (const card of cards) {
+              if (card.fields && Array.isArray(card.fields)) {
+                for (const field of card.fields) {
+                  if (field.tableName === tableName && field.columnName === columnName) {
+                    console.log(`CASCADE: Updating field reference ${field.tableName}.${field.columnName} -> ${sanitizedNewName} in form ${form.id}`);
+                    field.columnName = sanitizedNewName;
+                    modified = true;
+                  }
+                }
+              }
+            }
+            
+            if (modified) {
+              await db.run(
+                'UPDATE form_templates SET cards = ?, updated_at = ? WHERE id = ?',
+                [JSON.stringify(cards), new Date().toISOString(), form.id]
+              );
+              console.log(`CASCADE: Updated form template ${form.id}`);
+            }
+          } catch (parseError) {
+            console.warn(`CASCADE: Error parsing cards for form ${form.id}:`, parseError);
+          }
+        }
+      } catch (formError) {
+        console.error('CASCADE: Error updating form templates after column rename:', formError);
+      }
+
+      // CASCADE: Update field references in document parsing schemas
+      try {
+        const config = await loadConfig();
+        console.log(`CASCADE: Checking ${config.schemas.length} document parsing schemas for column rename`);
+        let configModified = false;
+        
+        for (const schema of config.schemas) {
+          for (const field of schema.fields) {
+            if (field.tableName === tableName && field.columnName === columnName) {
+              console.log(`CASCADE: Updating field reference ${field.tableName}.${field.columnName} -> ${sanitizedNewName} in schema ${schema.documentType}`);
+              field.columnName = sanitizedNewName;
+              configModified = true;
+            }
+          }
+        }
+        
+        if (configModified) {
+          await saveConfig(config);
+          console.log(`CASCADE: Document parsing config updated`);
+        } else {
+          console.log(`CASCADE: No matching fields found in document parsing schemas`);
+        }
+      } catch (configError) {
+        console.error('CASCADE: Error updating document parsing config after column rename:', configError);
       }
 
       // Commit transaction
@@ -2197,6 +2372,59 @@ async function updateProfileTimestamp(clientId: string) {
     console.error('Error updating profile timestamp:', error);
     // Don't throw - this is a non-critical operation
   }
+}
+
+// Helper function to clean up PDF files for documents table operations
+async function cleanupDocumentPDFs(clientId: string, columnName?: string, specificFilePath?: string): Promise<number> {
+  let deletedCount = 0;
+  
+  try {
+    const clientDir = path.join(__dirname, '..', 'backend', 'Data', clientId.toString());
+    
+    // Check if client directory exists
+    try {
+      await fs.access(clientDir);
+    } catch {
+      console.log(`CLEANUP: Client directory ${clientDir} does not exist`);
+      return 0;
+    }
+    
+    const files = await fs.readdir(clientDir);
+    
+    for (const file of files) {
+      let shouldDelete = false;
+      
+      if (specificFilePath) {
+        // Delete specific file if it matches
+        const fileName = path.basename(specificFilePath);
+        shouldDelete = file === fileName;
+      } else if (columnName) {
+        // Delete files for specific column
+        const expectedPrefix = `${clientId}_${columnName}`;
+        shouldDelete = file.startsWith(expectedPrefix);
+      } else {
+        // Delete all document files for this client (when deleting entire client)
+        shouldDelete = file.startsWith(`${clientId}_`);
+      }
+      
+      if (shouldDelete) {
+        const filePath = path.join(clientDir, file);
+        try {
+          await fs.unlink(filePath);
+          deletedCount++;
+          console.log(`CLEANUP: Deleted PDF file ${filePath}`);
+        } catch (deleteError) {
+          console.warn(`CLEANUP: Failed to delete file ${filePath}:`, deleteError.message);
+        }
+      }
+    }
+    
+    console.log(`CLEANUP: Deleted ${deletedCount} PDF files for client ${clientId}${columnName ? ` column ${columnName}` : ''}`);
+  } catch (error) {
+    console.error(`CLEANUP: Error during PDF cleanup for client ${clientId}:`, error);
+  }
+  
+  return deletedCount;
 }
 
 // Update row
@@ -2287,6 +2515,55 @@ app.delete("/api/database/tables/:tableName/rows/:rowId", async (req, res) => {
       clientId = record?.client_id;
     } else {
       clientId = rowId as string;
+    }
+
+    // SPECIAL CASE: If deleting a row from documents table, clean up associated PDF files
+    if (tableName === 'documents') {
+      console.log(`CLEANUP: Starting PDF cleanup for deleted documents row ${rowId}`);
+      try {
+        // Get the document record to find which files to delete
+        const documentRecord = await db.get(`SELECT * FROM documents WHERE ${primaryKey} = ?`, [rowId]);
+        
+        if (documentRecord && documentRecord.client_id) {
+          // Get all document type columns from the documents table
+          const documentSchema = await db.all(`PRAGMA table_info(documents)`);
+          const systemColumns = [
+            'document_id', 'client_id', 'document_name', 'file_path', 
+            'file_size', 'mime_type', 'upload_date', 'verification_status',
+            'verified_by', 'verified_at', 'notes', 'is_required', 'created_at', 'updated_at'
+          ];
+          const documentTypeColumns = documentSchema
+            .filter(col => !systemColumns.includes(col.name))
+            .map(col => col.name);
+          
+          let totalDeleted = 0;
+          for (const columnName of documentTypeColumns) {
+            if (documentRecord[columnName]) {
+              // Extract filename from the stored path
+              const storedPath = documentRecord[columnName];
+              let fileName = '';
+              
+              if (storedPath.includes('/')) {
+                fileName = storedPath.split('/').pop();
+              } else if (storedPath.includes('\\')) {
+                fileName = storedPath.split('\\').pop();
+              } else {
+                fileName = storedPath;
+              }
+              
+              if (fileName) {
+                const deletedCount = await cleanupDocumentPDFs(documentRecord.client_id.toString(), undefined, fileName);
+                totalDeleted += deletedCount;
+              }
+            }
+          }
+          
+          console.log(`CLEANUP: Total ${totalDeleted} PDF files deleted for document record ${rowId}`);
+        }
+      } catch (cleanupError) {
+        console.error('CLEANUP: Error during PDF cleanup for row deletion:', cleanupError);
+        // Don't fail the operation if cleanup fails
+      }
     }
 
     await db.run(`DELETE FROM ${tableName} WHERE ${primaryKey} = ?`, rowId);
@@ -2490,7 +2767,7 @@ app.delete("/api/database/tables/:tableName", async (req, res) => {
     const { tableName } = req.params;
 
     // Prevent deletion of core system tables
-    const protectedTables = ['personal_details', 'documents'];
+    const protectedTables = ['personal_details', 'documents', 'document_parsing_schemas'];
     if (protectedTables.includes(tableName)) {
       return res.status(403).json({
         error: `Cannot delete the '${tableName}' table. This is the parent table and is required for the system to function properly.`
@@ -2514,6 +2791,93 @@ app.delete("/api/database/tables/:tableName", async (req, res) => {
 
     // Drop the table
     await db.run(`DROP TABLE ${tableName}`);
+
+    // CASCADE: Clean up related data in system tables
+    console.log(`CASCADE: Starting cleanup for deleted table ${tableName}`);
+    
+    try {
+      // Remove column metadata for this table
+      const metadataResult = await db.run(
+        'DELETE FROM column_metadata WHERE table_name = ?',
+        [tableName]
+      );
+      console.log(`CASCADE: Removed ${metadataResult.changes} column metadata records for table ${tableName}`);
+    } catch (metadataError) {
+      console.error('CASCADE: Error removing column metadata after table deletion:', metadataError);
+    }
+
+    try {
+      // Remove fields from form templates that reference this table
+      const forms = await db.all('SELECT id, cards FROM form_templates');
+      console.log(`CASCADE: Found ${forms.length} form templates to check`);
+      
+      for (const form of forms) {
+        try {
+          const cards = JSON.parse(form.cards);
+          let modified = false;
+          
+          for (const card of cards) {
+            if (card.fields && Array.isArray(card.fields)) {
+              const originalLength = card.fields.length;
+              card.fields = card.fields.filter((field: any) => {
+                const shouldRemove = field.tableName === tableName;
+                if (shouldRemove) {
+                  console.log(`CASCADE: Removing field ${field.tableName}.${field.columnName} from form ${form.id}`);
+                }
+                return !shouldRemove;
+              });
+              if (card.fields.length !== originalLength) {
+                modified = true;
+              }
+            }
+          }
+          
+          if (modified) {
+            await db.run(
+              'UPDATE form_templates SET cards = ?, updated_at = ? WHERE id = ?',
+              [JSON.stringify(cards), new Date().toISOString(), form.id]
+            );
+            console.log(`CASCADE: Updated form template ${form.id}`);
+          }
+        } catch (parseError) {
+          console.warn(`CASCADE: Error parsing cards for form ${form.id}:`, parseError);
+        }
+      }
+    } catch (formError) {
+      console.error('CASCADE: Error updating form templates after table deletion:', formError);
+    }
+
+    try {
+      // Remove fields from document parsing schemas that reference this table
+      const config = await loadConfig();
+      console.log(`CASCADE: Checking ${config.schemas.length} document parsing schemas`);
+      let configModified = false;
+      
+      for (const schema of config.schemas) {
+        const originalLength = schema.fields.length;
+        schema.fields = schema.fields.filter(field => {
+          const shouldRemove = field.tableName === tableName;
+          if (shouldRemove) {
+            console.log(`CASCADE: Removing field ${field.tableName}.${field.columnName} from schema ${schema.documentType}`);
+          }
+          return !shouldRemove;
+        });
+        if (schema.fields.length !== originalLength) {
+          configModified = true;
+        }
+      }
+      
+      if (configModified) {
+        await saveConfig(config);
+        console.log(`CASCADE: Document parsing config updated`);
+      } else {
+        console.log(`CASCADE: No matching fields found in document parsing schemas`);
+      }
+    } catch (configError) {
+      console.error('CASCADE: Error updating document parsing config after table deletion:', configError);
+    }
+
+    console.log(`CASCADE: Cleanup completed for table ${tableName}`);
 
     console.log(`Table '${tableName}' deleted successfully`);
 
@@ -3320,7 +3684,7 @@ app.delete("/api/profiles/:id", async (req, res) => {
     await db.run("DELETE FROM personal_details WHERE client_id = ?", client.client_id);
 
     // Delete client's document folder
-    const clientFolder = path.join(__dirname, 'Data', client.client_id.toString());
+    const clientFolder = path.join(__dirname, '..', 'backend', 'Data', client.client_id.toString());
     
     try {
       await fs.rm(clientFolder, { recursive: true, force: true });
@@ -4697,7 +5061,7 @@ app.post("/api/document-processor/upload-simple", upload.single('file'), async (
       });
     }
 
-    const { documentType } = req.body;
+    const { documentType, clientId } = req.body;
     if (!documentType) {
       return res.status(400).json({
         success: false,
@@ -4705,17 +5069,32 @@ app.post("/api/document-processor/upload-simple", upload.single('file'), async (
       });
     }
 
+    if (!clientId) {
+      // Clean up uploaded file
+      try {
+        await fs.unlink(req.file.path);
+      } catch (unlinkError) {
+        console.error('Error deleting uploaded file:', unlinkError);
+      }
+      return res.status(400).json({
+        success: false,
+        error: "Client ID is required"
+      });
+    }
+
     // Generate unique ID for this document
     const documentId = `simple_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Create final filename with document ID
+    // Create final filename with client ID and document type
     const fileExtension = path.extname(req.file.originalname);
-    const finalFilename = `${documentId}_${req.file.originalname}`;
-    const finalPath = path.join(__dirname, 'Data', 'documents', finalFilename);
+    const finalFilename = `${clientId}_${documentType}_${documentId}${fileExtension}`;
     
-    // Ensure documents directory exists
-    const documentsDir = path.join(__dirname, 'Data', 'documents');
-    await fs.mkdir(documentsDir, { recursive: true });
+    // Store in client-specific folder
+    const clientDir = path.join(__dirname, '..', 'backend', 'Data', clientId.toString());
+    const finalPath = path.join(clientDir, finalFilename);
+    
+    // Ensure client directory exists
+    await fs.mkdir(clientDir, { recursive: true });
     
     // Move file from temp to final location
     await fs.rename(req.file.path, finalPath);
@@ -4726,7 +5105,7 @@ app.post("/api/document-processor/upload-simple", upload.single('file'), async (
       success: true,
       documentId,
       message: "Document uploaded successfully",
-      filePath: `Data/documents/${finalFilename}`,
+      filePath: `backend/Data/${clientId}/${finalFilename}`,
       status: 'completed'
     });
 
@@ -4885,7 +5264,7 @@ app.post("/api/documents/organize/:clientId", async (req, res) => {
     console.log(`Organizing documents for client ${clientId}:`, documentFiles);
 
     // Create client-specific folder
-    const clientFolder = path.join(__dirname, 'Data', clientId.toString());
+    const clientFolder = path.join(__dirname, '..', 'backend', 'Data', clientId.toString());
     await fs.mkdir(clientFolder, { recursive: true });
     console.log(`Created client folder: ${clientFolder}`);
 
@@ -5054,14 +5433,20 @@ app.post("/api/document-processor/cleanup", async (req, res) => {
         const doc = processingQueue[docIndex];
         
         if (moveToFinal) {
-          // Move file to final location
-          const finalDir = path.join(__dirname, 'Data', 'documents');
-          await fs.mkdir(finalDir, { recursive: true });
+          // Move file to client-specific folder (requires clientId in the request)
+          const { clientId } = req.body;
+          if (!clientId) {
+            console.warn(`Cannot move document ${docId} to final location: clientId not provided`);
+            continue;
+          }
           
-          const finalPath = path.join(finalDir, `${docId}_${doc.file.originalname}`);
+          const clientDir = path.join(__dirname, '..', 'backend', 'Data', clientId.toString());
+          await fs.mkdir(clientDir, { recursive: true });
+          
+          const finalPath = path.join(clientDir, `${clientId}_${docId}_${doc.file.originalname}`);
           await fs.rename(doc.tempPath, finalPath);
           
-          console.log(`Moved AI-processed document ${docId} to final location: ${finalPath}`);
+          console.log(`Moved AI-processed document ${docId} to client folder: ${finalPath}`);
         } else {
           // Delete temp file
           try {
@@ -5076,23 +5461,26 @@ app.post("/api/document-processor/cleanup", async (req, res) => {
         processingQueue.splice(docIndex, 1);
         cleanedCount++;
       } else if (docId.startsWith('simple_')) {
-        // Handle simple uploaded documents (already in final location)
+        // Handle simple uploaded documents (already in client folder)
         if (!moveToFinal) {
           // Delete the file if not moving to final (i.e., cancelling)
           try {
-            const documentsDir = path.join(__dirname, 'Data', 'documents');
-            const files = await fs.readdir(documentsDir);
-            const fileToDelete = files.find(file => file.startsWith(docId));
-            
-            if (fileToDelete) {
-              await fs.unlink(path.join(documentsDir, fileToDelete));
-              console.log(`Deleted simple uploaded document ${docId}`);
+            const { clientId } = req.body;
+            if (clientId) {
+              const clientDir = path.join(__dirname, '..', 'backend', 'Data', clientId.toString());
+              const files = await fs.readdir(clientDir);
+              const fileToDelete = files.find(file => file.includes(docId));
+              
+              if (fileToDelete) {
+                await fs.unlink(path.join(clientDir, fileToDelete));
+                console.log(`Deleted simple uploaded document ${docId}`);
+              }
             }
           } catch (error) {
             console.warn(`Failed to delete simple uploaded document: ${error.message}`);
           }
         }
-        // If moveToFinal is true, file is already in final location, no action needed
+        // If moveToFinal is true, file is already in client folder, no action needed
         cleanedCount++;
       }
     }
@@ -5770,7 +6158,7 @@ initDb().then(() => {
   // Cleanup old temp files on startup and periodically
   const cleanupTempFiles = async () => {
     try {
-      const tempDir = path.join(__dirname, 'Data', 'temp');
+      const tempDir = path.join(__dirname, '..', 'backend', 'Data', 'temp');
       
       // Check if temp directory exists
       try {

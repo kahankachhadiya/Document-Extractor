@@ -566,7 +566,7 @@ const DocumentParsingConfig = () => {
                                                 </Button>
                                             </div>
                                             <Textarea
-                                                placeholder="Optional: Description for LLM (e.g., 'Full name as shown on document')"
+                                                placeholder="Enter description (optional)"
                                                 value={field.description || ''}
                                                 onChange={(e) => updateFieldDescription(index, e.target.value)}
                                                 className="text-sm"

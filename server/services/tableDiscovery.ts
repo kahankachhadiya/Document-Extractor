@@ -667,7 +667,7 @@ export class TableValidationService {
     }
 
     // Filter out our system metadata tables
-    const systemTables = ['column_metadata', 'sqlite_sequence', 'sqlite_stat1'];
+    const systemTables = ['column_metadata', 'sqlite_sequence', 'sqlite_stat1', 'document_parsing_schemas'];
     if (systemTables.includes(tableName)) {
       return false;
     }

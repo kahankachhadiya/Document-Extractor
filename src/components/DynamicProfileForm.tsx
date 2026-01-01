@@ -1070,7 +1070,7 @@ const DynamicProfileForm = ({ onSubmit, onCancel }: DynamicProfileFormProps) => 
                         console.log('Moved temp files:', moveResult);
 
                         // Update file paths in formData to reflect new client ID
-                        // Handles both absolute paths (D:\...\Data\123\...) and relative paths (Data/123/...)
+                        // Handles both absolute paths (D:\...\backend\Data\123\...) and relative paths (backend/Data/123/...)
                         for (const tableName of Object.keys(formData)) {
                             const tableData = formData[tableName];
                             if (tableData) {
@@ -1081,6 +1081,8 @@ const DynamicProfileForm = ({ onSubmit, onCancel }: DynamicProfileFormProps) => 
                                         updatedPath = updatedPath.replace(new RegExp(`/${tempClientId}/`, 'g'), `/${clientId}/`);
                                         updatedPath = updatedPath.replace(new RegExp(`Data\\\\${tempClientId}\\\\`, 'g'), `Data\\${clientId}\\`);
                                         updatedPath = updatedPath.replace(new RegExp(`Data/${tempClientId}/`, 'g'), `Data/${clientId}/`);
+                                        updatedPath = updatedPath.replace(new RegExp(`backend/Data/${tempClientId}/`, 'g'), `backend/Data/${clientId}/`);
+                                        updatedPath = updatedPath.replace(new RegExp(`backend\\\\Data\\\\${tempClientId}\\\\`, 'g'), `backend\\Data\\${clientId}\\`);
                                         // Replace filename prefix
                                         updatedPath = updatedPath.replace(`${tempClientId}_`, `${clientId}_`);
                                         formData[tableName][key] = updatedPath;

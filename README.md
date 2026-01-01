@@ -6,8 +6,9 @@ A comprehensive web application for intelligent document processing and data ext
 
 ### Core Functionality
 - **AI-Powered Document Processing**: Extract structured data from PDFs, images, and documents using advanced AI models
-- **Dynamic Profile Management**: Create and manage client profiles with flexible table structures
+- **Dynamic Profile Management**: Create and manage client profiles with flexible table structures  
 - **Real-time Document Upload**: Drag-and-drop interface with immediate processing and queue management
+- **Client-Specific File Organization**: Documents stored in individual client folders for better organization
 - **Intelligent Data Validation**: Advanced validation with email detection, constraints, and dropdown options
 - **Admin Configuration Panel**: Configure document parsing schemas and field mappings
 
@@ -59,8 +60,12 @@ A comprehensive web application for intelligent document processing and data ext
 │   ├── documentParsingConfig.ts     # Schema configuration
 │   ├── tableDiscovery.ts      # Database introspection
 │   ├── validationService.ts   # Data validation
-│   └── Data/                  # File storage directory
 ├── backend/                   # AI processing backend
+│   ├── Data/                  # File storage directory
+│   │   ├── temp/              # Temporary uploads
+│   │   ├── {clientId}/        # Client-specific document folders
+│   │   │   └── {clientId}_{documentType}.pdf
+│   ├── student_management.db  # SQLite database
 │   ├── document-processor.exe # Main AI processor (86MB)
 │   ├── llama_server/         # LLM inference engine
 │   ├── gemma-3n-E4B-it-text-GGUF/  # AI model files
@@ -136,7 +141,7 @@ The AI backend automatically configures itself:
 ### Database Configuration
 
 - **Type**: SQLite with WAL mode
-- **Location**: `server/student_management.db`
+- **Location**: `backend/student_management.db`
 - **Migrations**: Automatic on startup
 - **Backup**: WAL files provide transaction safety
 

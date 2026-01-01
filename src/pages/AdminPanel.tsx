@@ -164,7 +164,6 @@ const DatabaseManagement = () => {
                 // If it starts with a number, prefix with underscore
                 if (/^[0-9]/.test(columnName)) {
                     columnName = '_' + columnName;
-                    toast({ title: "Notice", description: `Column name cannot start with a number. Using "${columnName}" instead.` });
                 } else {
                     toast({ title: "Validation Error", description: "Column name can only contain letters, numbers, and underscores, and must start with a letter or underscore.", variant: "destructive" });
                     return;
@@ -183,14 +182,16 @@ const DatabaseManagement = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: columnName,
-                    type: newColumn.type,
+                    type: newColumn.type === 'EMAIL' ? 'TEXT' : newColumn.type, // Convert EMAIL to TEXT
                     required: newColumn.required,
-                    isEmail: newColumn.isEmail,
-                    minLength: newColumn.minLength,
-                    maxLength: newColumn.maxLength,
-                    exactLength: newColumn.exactLength,
-                    hasDropdown: newColumn.hasDropdown,
-                    dropdownOptions: newColumn.hasDropdown && newColumn.dropdownOptions.length > 0 ? newColumn.dropdownOptions.filter(opt => opt.trim()) : undefined,
+                    isEmail: newColumn.type === 'EMAIL' ? true : newColumn.isEmail, // Set isEmail=true for EMAIL type
+                    // TEXT constraints (not applicable for EMAIL type)
+                    minLength: newColumn.type === 'EMAIL' ? undefined : newColumn.minLength,
+                    maxLength: newColumn.type === 'EMAIL' ? undefined : newColumn.maxLength,
+                    exactLength: newColumn.type === 'EMAIL' ? undefined : newColumn.exactLength,
+                    hasDropdown: newColumn.type === 'EMAIL' ? false : newColumn.hasDropdown, // No dropdown for EMAIL
+                    dropdownOptions: newColumn.type === 'EMAIL' ? undefined : (newColumn.hasDropdown && newColumn.dropdownOptions.length > 0 ? newColumn.dropdownOptions.filter(opt => opt.trim()) : undefined),
+                    // INTEGER constraints
                     minValue: newColumn.minValue,
                     maxValue: newColumn.maxValue,
                     exactValue: newColumn.exactValue
@@ -326,15 +327,15 @@ const DatabaseManagement = () => {
             ...newTable.columns.filter(col => col.name.trim() && col.name !== 'client_id')
                 .map(col => ({
                     name: col.name.trim().replace(/\s+/g, '_'),
-                    type: col.type,
+                    type: col.type === 'EMAIL' ? 'TEXT' : col.type, // Convert EMAIL to TEXT
                     required: col.required,
-                    isEmail: col.isEmail,
-                    // TEXT constraints
-                    minLength: col.minLength,
-                    maxLength: col.maxLength,
-                    exactLength: col.exactLength,
-                    hasDropdown: col.hasDropdown,
-                    dropdownOptions: col.hasDropdown && col.dropdownOptions && col.dropdownOptions.length > 0 ? col.dropdownOptions.filter(opt => opt.trim()) : undefined,
+                    isEmail: col.type === 'EMAIL' ? true : col.isEmail, // Set isEmail=true for EMAIL type
+                    // TEXT constraints (not applicable for EMAIL type)
+                    minLength: col.type === 'EMAIL' ? undefined : col.minLength,
+                    maxLength: col.type === 'EMAIL' ? undefined : col.maxLength,
+                    exactLength: col.type === 'EMAIL' ? undefined : col.exactLength,
+                    hasDropdown: col.type === 'EMAIL' ? false : col.hasDropdown, // No dropdown for EMAIL
+                    dropdownOptions: col.type === 'EMAIL' ? undefined : (col.hasDropdown && col.dropdownOptions && col.dropdownOptions.length > 0 ? col.dropdownOptions.filter(opt => opt.trim()) : undefined),
                     // INTEGER constraints
                     minValue: col.minValue,
                     maxValue: col.maxValue,
@@ -358,7 +359,7 @@ const DatabaseManagement = () => {
                 setShowCreateTable(false);
                 setNewTable({ name: '', columns: [createDefaultColumn()] });
                 fetchTables();
-                toast({ title: "Success", description: `Table "${tableName}" created successfully with client_id foreign key!` });
+                toast({ title: "Success", description: `Table "${tableName}" created successfully!` });
             } else if (response.status === 404) {
                 toast({ title: "Error", description: "The API endpoint for creating tables is not implemented yet. Please contact your developer.", variant: "destructive" });
             } else {
@@ -383,6 +384,10 @@ const DatabaseManagement = () => {
         }
         if (tableName === 'documents') {
             toast({ title: "Error", description: "Cannot delete the Documents table - it is a core system table", variant: "destructive" });
+            return;
+        }
+        if (tableName === 'document_parsing_schemas') {
+            toast({ title: "Error", description: "Cannot delete the Document Parsing Schemas table - it is a core system table", variant: "destructive" });
             return;
         }
 
@@ -548,7 +553,7 @@ const DatabaseManagement = () => {
                                                                 value={editColumnName}
                                                                 onChange={(e) => setEditColumnName(e.target.value)}
                                                                 className="h-8 text-sm"
-                                                                placeholder="Enter new column name"
+                                                                placeholder="Enter column name"
                                                                 autoFocus
                                                                 onKeyDown={(e) => {
                                                                     if (e.key === 'Enter') {
@@ -628,7 +633,7 @@ const DatabaseManagement = () => {
                             Create New Table
                         </DialogTitle>
                         <DialogDescription>
-                            Create a new database table with custom columns. A client_id column will be added automatically.
+                            Create a new database table with custom columns.
                             All constraints are optional - leave them empty if not needed.
                         </DialogDescription>
                     </DialogHeader>
@@ -638,7 +643,7 @@ const DatabaseManagement = () => {
                             <label className="block text-sm font-medium mb-2">Table Name</label>
                             <Input
                                 type="text"
-                                placeholder="Enter table name (spaces allowed)"
+                                placeholder="Enter table name"
                                 value={newTable.name}
                                 onChange={(e) => setNewTable({ ...newTable, name: e.target.value })}
                             />
@@ -646,7 +651,7 @@ const DatabaseManagement = () => {
                         
                         <div>
                             <label className="block text-sm font-medium mb-2">
-                                Additional Columns (client_id will be added automatically)
+                                Additional Columns
                             </label>
                             <div className="space-y-4">
                                 {newTable.columns.map((column, index) => (
@@ -656,7 +661,7 @@ const DatabaseManagement = () => {
                                             <div className="flex items-center space-x-2">
                                                 <Input
                                                     type="text"
-                                                    placeholder="Column name"
+                                                    placeholder="Enter column name"
                                                     value={column.name}
                                                     onChange={(e) => {
                                                         const updatedColumns = [...newTable.columns];
@@ -670,11 +675,16 @@ const DatabaseManagement = () => {
                                                     onChange={(e) => {
                                                         const updatedColumns = [...newTable.columns];
                                                         updatedColumns[index].type = e.target.value;
+                                                        // Reset email flag when changing type
+                                                        if (e.target.value !== 'TEXT') {
+                                                            updatedColumns[index].isEmail = false;
+                                                        }
                                                         setNewTable({ ...newTable, columns: updatedColumns });
                                                     }}
                                                     className="px-3 py-2 border rounded w-32"
                                                 >
                                                     <option value="TEXT">TEXT</option>
+                                                    <option value="EMAIL">EMAIL</option>
                                                     <option value="INTEGER">INTEGER</option>
                                                     <option value="DATE">DATE</option>
                                                 </select>
@@ -709,24 +719,6 @@ const DatabaseManagement = () => {
                                             {/* TEXT Type Options */}
                                             {column.type === 'TEXT' && (
                                                 <>
-                                                    {/* Email Field Checkbox */}
-                                                    <div className="flex items-center space-x-2">
-                                                        <input
-                                                            type="checkbox"
-                                                            id={`isEmail-${index}`}
-                                                            checked={column.isEmail}
-                                                            onChange={(e) => {
-                                                                const updatedColumns = [...newTable.columns];
-                                                                updatedColumns[index].isEmail = e.target.checked;
-                                                                setNewTable({ ...newTable, columns: updatedColumns });
-                                                            }}
-                                                            className="h-4 w-4"
-                                                        />
-                                                        <label htmlFor={`isEmail-${index}`} className="text-sm">
-                                                            Email field (validates @ and domain)
-                                                        </label>
-                                                    </div>
-
                                                     {/* Dropdown Toggle */}
                                                     <div className="flex items-center space-x-2">
                                                         <input
@@ -763,7 +755,7 @@ const DatabaseManagement = () => {
                                                                             setNewTable({ ...newTable, columns: updatedColumns });
                                                                         }}
                                                                         className="h-8 flex-1"
-                                                                        placeholder="Option value"
+                                                                        placeholder="Enter option value"
                                                                     />
                                                                     <Button
                                                                         variant="ghost"
@@ -793,55 +785,14 @@ const DatabaseManagement = () => {
                                                             </Button>
                                                         </div>
                                                     )}
-
-                                                    {/* Character Length Restrictions (only if not dropdown) */}
-                                                    {!column.hasDropdown && (
-                                                        <div className="grid grid-cols-3 gap-2">
-                                                            <div>
-                                                                <label className="text-xs text-muted-foreground">Min Length</label>
-                                                                <Input
-                                                                    type="number"
-                                                                    placeholder="Min"
-                                                                    value={column.minLength || ''}
-                                                                    onChange={(e) => {
-                                                                        const updatedColumns = [...newTable.columns];
-                                                                        updatedColumns[index].minLength = e.target.value ? parseInt(e.target.value) : undefined;
-                                                                        setNewTable({ ...newTable, columns: updatedColumns });
-                                                                    }}
-                                                                    className="h-8"
-                                                                />
-                                                            </div>
-                                                            <div>
-                                                                <label className="text-xs text-muted-foreground">Max Length</label>
-                                                                <Input
-                                                                    type="number"
-                                                                    placeholder="Max"
-                                                                    value={column.maxLength || ''}
-                                                                    onChange={(e) => {
-                                                                        const updatedColumns = [...newTable.columns];
-                                                                        updatedColumns[index].maxLength = e.target.value ? parseInt(e.target.value) : undefined;
-                                                                        setNewTable({ ...newTable, columns: updatedColumns });
-                                                                    }}
-                                                                    className="h-8"
-                                                                />
-                                                            </div>
-                                                            <div>
-                                                                <label className="text-xs text-muted-foreground">Exact Length</label>
-                                                                <Input
-                                                                    type="number"
-                                                                    placeholder="Exact"
-                                                                    value={column.exactLength || ''}
-                                                                    onChange={(e) => {
-                                                                        const updatedColumns = [...newTable.columns];
-                                                                        updatedColumns[index].exactLength = e.target.value ? parseInt(e.target.value) : undefined;
-                                                                        setNewTable({ ...newTable, columns: updatedColumns });
-                                                                    }}
-                                                                    className="h-8"
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    )}
                                                 </>
+                                            )}
+
+                                            {/* EMAIL Type Info */}
+                                            {column.type === 'EMAIL' && (
+                                                <div className="text-xs text-muted-foreground p-2 bg-blue-50 rounded">
+                                                    Email validation will be applied automatically (validates @ and domain)
+                                                </div>
                                             )}
 
                                             {/* INTEGER Type Options */}
@@ -851,7 +802,7 @@ const DatabaseManagement = () => {
                                                         <label className="text-xs text-muted-foreground">Min Value</label>
                                                         <Input
                                                             type="number"
-                                                            placeholder="Min"
+                                                            placeholder="Enter min value"
                                                             value={column.minValue || ''}
                                                             onChange={(e) => {
                                                                 const updatedColumns = [...newTable.columns];
@@ -865,7 +816,7 @@ const DatabaseManagement = () => {
                                                         <label className="text-xs text-muted-foreground">Max Value</label>
                                                         <Input
                                                             type="number"
-                                                            placeholder="Max"
+                                                            placeholder="Enter max value"
                                                             value={column.maxValue || ''}
                                                             onChange={(e) => {
                                                                 const updatedColumns = [...newTable.columns];
@@ -879,7 +830,7 @@ const DatabaseManagement = () => {
                                                         <label className="text-xs text-muted-foreground">Exact Value</label>
                                                         <Input
                                                             type="number"
-                                                            placeholder="Exact"
+                                                            placeholder="Enter exact value"
                                                             value={column.exactValue || ''}
                                                             onChange={(e) => {
                                                                 const updatedColumns = [...newTable.columns];
@@ -957,13 +908,10 @@ const DatabaseManagement = () => {
                             <label className="block text-sm font-medium mb-2">Column Name</label>
                             <Input
                                 type="text"
-                                placeholder="Enter column name (e.g., student_grade, marks_12th)"
+                                placeholder="Enter column name"
                                 value={newColumn.name}
                                 onChange={(e) => setNewColumn({ ...newColumn, name: e.target.value })}
                             />
-                            <p className="text-xs text-muted-foreground mt-1">
-                                Names starting with numbers will be prefixed with underscore. Spaces will be replaced with underscores.
-                            </p>
                         </div>
 
                         {/* Only show constraints for non-documents tables */}
@@ -975,10 +923,18 @@ const DatabaseManagement = () => {
                                         <label className="block text-sm font-medium mb-2">Data Type</label>
                                         <select
                                             value={newColumn.type}
-                                            onChange={(e) => setNewColumn({ ...newColumn, type: e.target.value })}
+                                            onChange={(e) => {
+                                                setNewColumn({ 
+                                                    ...newColumn, 
+                                                    type: e.target.value,
+                                                    // Reset email flag when changing type
+                                                    isEmail: e.target.value === 'TEXT' ? newColumn.isEmail : false
+                                                });
+                                            }}
                                             className="w-full px-3 py-2 border rounded"
                                         >
                                             <option value="TEXT">TEXT</option>
+                                            <option value="EMAIL">EMAIL</option>
                                             <option value="INTEGER">INTEGER</option>
                                             <option value="DATE">DATE</option>
                                         </select>
@@ -1001,20 +957,6 @@ const DatabaseManagement = () => {
                                     {/* TEXT Type Options */}
                                     {newColumn.type === 'TEXT' && (
                                         <>
-                                            {/* Email Field Checkbox */}
-                                            <div className="flex items-center space-x-2">
-                                                <input
-                                                    type="checkbox"
-                                                    id="isEmail-add-column"
-                                                    checked={newColumn.isEmail}
-                                                    onChange={(e) => setNewColumn({ ...newColumn, isEmail: e.target.checked })}
-                                                    className="h-4 w-4"
-                                                />
-                                                <label htmlFor="isEmail-add-column" className="text-sm">
-                                                    Email field (validates @ and domain)
-                                                </label>
-                                            </div>
-
                                             {/* Dropdown Toggle */}
                                             <div className="flex items-center space-x-2">
                                                 <input
@@ -1050,7 +992,7 @@ const DatabaseManagement = () => {
                                                                     setNewColumn({ ...newColumn, dropdownOptions: updated });
                                                                 }}
                                                                 className="h-8 flex-1"
-                                                                placeholder="Option value"
+                                                                placeholder="Enter option value"
                                                             />
                                                             <Button
                                                                 variant="ghost"
@@ -1080,43 +1022,14 @@ const DatabaseManagement = () => {
                                                     </Button>
                                                 </div>
                                             )}
-
-                                            {/* Character Length Restrictions (only if not dropdown) */}
-                                            {!newColumn.hasDropdown && (
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    <div>
-                                                        <label className="text-xs text-muted-foreground">Min Length</label>
-                                                        <Input
-                                                            type="number"
-                                                            placeholder="Min"
-                                                            value={newColumn.minLength || ''}
-                                                            onChange={(e) => setNewColumn({ ...newColumn, minLength: e.target.value ? parseInt(e.target.value) : undefined })}
-                                                            className="h-8"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs text-muted-foreground">Max Length</label>
-                                                        <Input
-                                                            type="number"
-                                                            placeholder="Max"
-                                                            value={newColumn.maxLength || ''}
-                                                            onChange={(e) => setNewColumn({ ...newColumn, maxLength: e.target.value ? parseInt(e.target.value) : undefined })}
-                                                            className="h-8"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs text-muted-foreground">Exact Length</label>
-                                                        <Input
-                                                            type="number"
-                                                            placeholder="Exact"
-                                                            value={newColumn.exactLength || ''}
-                                                            onChange={(e) => setNewColumn({ ...newColumn, exactLength: e.target.value ? parseInt(e.target.value) : undefined })}
-                                                            className="h-8"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            )}
                                         </>
+                                    )}
+
+                                    {/* EMAIL Type Info */}
+                                    {newColumn.type === 'EMAIL' && (
+                                        <div className="text-xs text-muted-foreground p-2 bg-blue-50 rounded">
+                                            Email validation will be applied automatically (validates @ and domain)
+                                        </div>
                                     )}
 
                                     {/* INTEGER Type Options */}
@@ -1126,7 +1039,7 @@ const DatabaseManagement = () => {
                                                 <label className="text-xs text-muted-foreground">Min Value</label>
                                                 <Input
                                                     type="number"
-                                                    placeholder="Min"
+                                                    placeholder="Enter min value"
                                                     value={newColumn.minValue || ''}
                                                     onChange={(e) => setNewColumn({ ...newColumn, minValue: e.target.value ? parseInt(e.target.value) : undefined })}
                                                     className="h-8"
@@ -1136,7 +1049,7 @@ const DatabaseManagement = () => {
                                                 <label className="text-xs text-muted-foreground">Max Value</label>
                                                 <Input
                                                     type="number"
-                                                    placeholder="Max"
+                                                    placeholder="Enter max value"
                                                     value={newColumn.maxValue || ''}
                                                     onChange={(e) => setNewColumn({ ...newColumn, maxValue: e.target.value ? parseInt(e.target.value) : undefined })}
                                                     className="h-8"
@@ -1146,7 +1059,7 @@ const DatabaseManagement = () => {
                                                 <label className="text-xs text-muted-foreground">Exact Value</label>
                                                 <Input
                                                     type="number"
-                                                    placeholder="Exact"
+                                                    placeholder="Enter exact value"
                                                     value={newColumn.exactValue || ''}
                                                     onChange={(e) => setNewColumn({ ...newColumn, exactValue: e.target.value ? parseInt(e.target.value) : undefined })}
                                                     className="h-8"

@@ -116,7 +116,7 @@ const FieldPalette = ({
             }
           } else {
             // Normal cards exclude system tables and documents table
-            const systemTables = ['documents', 'form_templates', 'column_metadata'];
+            const systemTables = ['documents', 'form_templates', 'column_metadata', 'document_parsing_schemas'];
             if (systemTables.includes(tableName)) {
               console.log(`FieldPalette: Excluding system table ${tableName} from field palette`);
               return;
@@ -238,7 +238,7 @@ const FieldPalette = ({
         <div className="text-xs text-muted-foreground mb-2 flex-shrink-0">
           {cardType === 'document' 
             ? 'Showing fields from documents table only.'
-            : 'System tables (documents, form_templates, column_metadata) are excluded.'
+            : 'System tables (documents, form_templates, column_metadata, document_parsing_schemas) are excluded.'
           }
         </div>
         <ScrollArea className="flex-1" style={{ maxHeight }}>
