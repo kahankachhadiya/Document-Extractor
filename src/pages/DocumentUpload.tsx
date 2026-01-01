@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,6 +64,19 @@ const DocumentUpload = () => {
   const [userCancelled, setUserCancelled] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Map<string, number>>(new Map());
   const [loadAbortController, setLoadAbortController] = useState<AbortController | null>(null);
+
+  // Use refs to track current state for cleanup
+  const modelStatusRef = useRef<ModelStatus>('unloaded');
+  const loadAbortControllerRef = useRef<AbortController | null>(null);
+
+  // Update refs when state changes
+  useEffect(() => {
+    modelStatusRef.current = modelStatus;
+  }, [modelStatus]);
+
+  useEffect(() => {
+    loadAbortControllerRef.current = loadAbortController;
+  }, [loadAbortController]);
 
   // Fetch document types and configuration on mount
   const fetchDocumentTypesAndConfig = useCallback(async () => {
@@ -310,18 +323,18 @@ const DocumentUpload = () => {
   useEffect(() => {
     return () => {
       // If loading is in progress, abort it and tell server to unload
-      if (loadAbortController) {
-        loadAbortController.abort();
+      if (loadAbortControllerRef.current) {
+        loadAbortControllerRef.current.abort();
         // Use sendBeacon to reliably send unload request during unmount
         navigator.sendBeacon('/api/document-processor/unload-model', JSON.stringify({ action: 'unload' }));
       }
-      if (modelStatus === 'loaded' || modelStatus === 'loading') {
+      if (modelStatusRef.current === 'loaded' || modelStatusRef.current === 'loading') {
         // Use sendBeacon for reliable cleanup during page unload
         const unloadData = JSON.stringify({ action: 'unload' });
         navigator.sendBeacon('/api/document-processor/unload-model', unloadData);
       }
     };
-  }, [modelStatus, loadAbortController]);
+  }, []); // Empty dependency array - only run cleanup on unmount
 
   // Process document immediately when file is selected - NON-BLOCKING
   const processDocumentImmediately = useCallback((documentType: string, file: File) => {

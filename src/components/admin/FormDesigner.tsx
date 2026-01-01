@@ -315,7 +315,8 @@ const SortableCard = ({
 
   const handleFieldAdd = (field: AvailableField) => {
     onAddField(field);
-    setShowFieldPalette(false);
+    // Don't close the dialog to allow multiple selections
+    // setShowFieldPalette(false); // Removed to keep dialog open
   };
 
   const handleFieldDrop = (field: AvailableField) => {
@@ -511,9 +512,14 @@ const SortableCard = ({
       <Dialog open={showFieldPalette} onOpenChange={setShowFieldPalette}>
         <DialogContent className="max-w-4xl h-[85vh] flex flex-col">
           <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Add Field to Card</DialogTitle>
+            <DialogTitle>Add Fields to Card</DialogTitle>
             <DialogDescription>
-              Select a field from any database table to add to this card.
+              Select multiple fields from any database table to add to this card. Use the X button to close when finished.
+              {card.fields.length > 0 && (
+                <span className="block mt-1 text-sm font-medium text-green-600">
+                  {card.fields.length} field{card.fields.length !== 1 ? 's' : ''} currently in this card
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
           

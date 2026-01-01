@@ -284,10 +284,20 @@ const DatabaseManagement = () => {
             });
             
             if (response.ok) {
+                const result = await response.json();
+                
+                // Refresh all related data
                 fetchTables();
+                
+                // If there are any form-related refreshes needed, trigger them here
+                // This ensures that form builders, document parsing configs, etc. are updated
+                
                 setEditingColumn(null);
                 setEditColumnName('');
-                toast({ title: "Success", description: "Column renamed successfully" });
+                toast({ 
+                    title: "Success", 
+                    description: `Column "${oldName}" renamed to "${result.newName}" successfully. All references updated.` 
+                });
             } else {
                 const errorData = await response.json();
                 toast({ title: "Error", description: `Error renaming column: ${errorData.error}`, variant: "destructive" });

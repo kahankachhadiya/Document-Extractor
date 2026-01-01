@@ -102,10 +102,12 @@ const FormCard = ({
 
       if (result.success) {
         toast({
-          title: "Card Data Copied",
+          title: result.replaced ? "Card Data Replaced" : "Card Data Copied",
           description: result.exeNotFound 
             ? `${fieldValues.length} values ready (form filler not found)`
-            : `${fieldValues.length} values sent to form filler`,
+            : result.replaced 
+              ? `${fieldValues.length} values replaced in form filler`
+              : `${fieldValues.length} values sent to form filler`,
         });
       } else {
         throw new Error(result.error || 'Failed to copy card data');

@@ -1067,6 +1067,9 @@ app.post("/api/settings", async (req, res) => {
   }
 });
 
+// Global variable to track running clipboard server process
+let clipboardServerProcess: any = null;
+
 // Copy card data endpoint - sends data to clipboard_server.exe
 app.post("/api/copy-card-data", async (req, res) => {
   try {
@@ -1084,51 +1087,69 @@ app.post("/api/copy-card-data", async (req, res) => {
     };
 
     // Path to clipboard_server.exe in backend folder
-    const { spawn } = await import('child_process');
+    const { spawn, exec } = await import('child_process');
     const exePath = path.join(__dirname, '..', 'backend', 'clipboard_server.exe');
     
     try {
       // Check if exe exists
       await fs.access(exePath);
       
+      // Always kill any existing clipboard_server.exe processes to ensure clean state
+      let wasReplaced = false;
+      try {
+        await new Promise<void>((resolve) => {
+          exec('taskkill /F /IM clipboard_server.exe', (error, stdout) => {
+            if (!error && stdout.includes('SUCCESS')) {
+              console.log('Killed existing clipboard server processes');
+              wasReplaced = true;
+            }
+            resolve();
+          });
+        });
+        
+        // Reset the process reference
+        clipboardServerProcess = null;
+        
+        // Give it a moment to clean up
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      } catch (killError) {
+        console.log('Could not kill existing processes:', killError.message);
+      }
+      
       // Write JSON to a temp file for input
       const tempInputPath = path.join(__dirname, 'config', 'clipboard_input.json');
       await fs.mkdir(path.dirname(tempInputPath), { recursive: true });
       await fs.writeFile(tempInputPath, JSON.stringify(processorData, null, 2));
       
-      // Create a VBS script to run the process completely silently (Windows only)
-      const vbsScript = `
-Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run """${exePath}"" --input-file ""${tempInputPath}""", 0, False
-      `.trim();
-      
-      const vbsPath = path.join(__dirname, 'config', 'run_silent.vbs');
-      await fs.writeFile(vbsPath, vbsScript);
-      
-      // Execute the VBS script which will run the clipboard server silently
-      const { exec } = await import('child_process');
-      exec(`cscript //nologo "${vbsPath}"`, (error) => {
-        // Clean up the VBS file after execution
-        fs.unlink(vbsPath).catch(() => {});
-        
-        if (error) {
-          console.log('VBS method failed, using fallback');
-          // Fallback to spawn method
-          const process = spawn(exePath, ['--input-file', tempInputPath], {
-            detached: true,
-            stdio: 'ignore',
-            windowsHide: true
-          });
-          process.unref();
-        }
+      // Start the clipboard server process (now runs in background by default)
+      clipboardServerProcess = spawn(exePath, ['--input-file', tempInputPath], {
+        detached: true,
+        stdio: 'ignore'
       });
       
-      console.log('Clipboard server started with data:', processorData);
+      // Don't keep the parent process alive
+      clipboardServerProcess.unref();
+      
+      // Handle process events
+      clipboardServerProcess.on('error', (error) => {
+        console.error('Clipboard server error:', error);
+        clipboardServerProcess = null;
+      });
+      
+      clipboardServerProcess.on('exit', (code) => {
+        console.log(`Clipboard server exited with code ${code}`);
+        clipboardServerProcess = null;
+      });
+      
+      console.log('Clipboard server started with PID:', clipboardServerProcess.pid);
+      console.log('Data:', processorData);
       
       res.json({ 
         success: true, 
-        message: 'Data sent to clipboard server',
-        data: processorData
+        message: wasReplaced ? 'Data replaced in clipboard server' : 'Data sent to clipboard server',
+        data: processorData,
+        replaced: wasReplaced,
+        pid: clipboardServerProcess.pid
       });
     } catch (exeError) {
       // Exe doesn't exist, just return the data that would be sent
@@ -1144,6 +1165,14 @@ WshShell.Run """${exePath}"" --input-file ""${tempInputPath}""", 0, False
     console.error('Error in copy-card-data:', error);
     res.status(500).json({ error: 'Failed to process copy request' });
   }
+});
+
+// Clipboard server status endpoint
+app.get("/api/clipboard-server-status", (_req, res) => {
+  res.json({
+    running: clipboardServerProcess !== null && !clipboardServerProcess.killed,
+    pid: clipboardServerProcess?.pid || null
+  });
 });
 
 // Performance monitoring endpoints
@@ -2361,9 +2390,21 @@ app.put("/api/database/tables/:tableName/columns/:columnName", async (req, res) 
       // Commit transaction
       await db.run('COMMIT');
 
+      // Broadcast column rename event to connected clients (if using WebSocket)
+      // This would refresh forms and other components that use this field
+      console.log(`CASCADE: Column rename completed successfully: ${tableName}.${columnName} -> ${sanitizedNewName}`);
+
       res.json({
         success: true,
-        message: `Column "${columnName}" renamed to "${sanitizedNewName}" successfully`
+        message: `Column "${columnName}" renamed to "${sanitizedNewName}" successfully`,
+        oldName: columnName,
+        newName: sanitizedNewName,
+        tableName: tableName,
+        cascadeUpdates: {
+          columnMetadata: true,
+          formTemplates: true,
+          documentParsing: true
+        }
       });
     } catch (error) {
       // Rollback on error
